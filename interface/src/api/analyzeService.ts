@@ -5,9 +5,11 @@ export async function analyzeDrawing(
   file: File,
   age: string | null,
   context: string,
+  mode: string = "auto",
 ): Promise<AnalysisResult> {
   const form = new FormData();
   form.append("file", file);
+  form.append("mode", mode);
   if (age) form.append("age", age);
   if (context) form.append("context", context);
 

@@ -35,12 +35,12 @@ export default function App() {
     setError(null);
   }, []);
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (mode: string = "auto") => {
     if (!file) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await analyzeDrawing(file, age || null, context);
+      const res = await analyzeDrawing(file, age || null, context, mode);
       setResult(res);
       setHistory((h) => [
         {
@@ -69,6 +69,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: "#faf8f5" }}>
       <Header activeTab={tab} onTabChange={setTab} />
+
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px" }}>
         {tab === 0 && (
           <AnalysisPage

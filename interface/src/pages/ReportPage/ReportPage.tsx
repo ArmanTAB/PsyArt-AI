@@ -34,6 +34,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
       className="fade-in"
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
+      {/* Header card */}
       <div
         className="card"
         style={{
@@ -47,13 +48,40 @@ export default function ReportPage({ result, age, onBack }: Props) {
         <div>
           <div
             style={{
-              color: "#a29bfe",
-              fontSize: 12,
-              letterSpacing: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
               marginBottom: 4,
             }}
           >
-            ПСИХОЛОГИЧЕСКИЙ ОТЧЁТ · rule-based AI
+            <div style={{ color: "#a29bfe", fontSize: 12, letterSpacing: 1 }}>
+              ПСИХОЛОГИЧЕСКИЙ ОТЧЁТ
+            </div>
+            {/* Бейдж режима */}
+            {result.analysisMode && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: 20,
+                  background:
+                    result.analysisMode === "llava"
+                      ? "#00b894"
+                      : result.analysisMode === "opencv_fallback"
+                        ? "#e17055"
+                        : "#0984e3",
+                  color: "#fff",
+                  letterSpacing: 0.5,
+                }}
+              >
+                {result.analysisMode === "llava"
+                  ? "🧠 LLaVA"
+                  : result.analysisMode === "opencv_fallback"
+                    ? "⚠ OpenCV (fallback)"
+                    : "🔬 OpenCV"}
+              </span>
+            )}
           </div>
           <h2
             style={{
@@ -67,6 +95,11 @@ export default function ReportPage({ result, age, onBack }: Props) {
           {age && (
             <p style={{ color: "#b2bec3", fontSize: 14, marginTop: 4 }}>
               Возраст: {age} лет
+            </p>
+          )}
+          {result.fallbackReason && (
+            <p style={{ color: "#fdcb6e", fontSize: 12, marginTop: 4 }}>
+              ⚠ {result.fallbackReason}
             </p>
           )}
         </div>
@@ -87,6 +120,82 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </div>
       </div>
 
+      {/* LLaVA: блок распознанного содержимого */}
+      {result.contentAnalysis &&
+        result.contentAnalysis.detectedObjects?.length > 0 && (
+          <div
+            className="card"
+            style={{ background: "#eafaf1", borderColor: "#a9dfbf" }}
+          >
+            <h4
+              style={{
+                fontSize: 13,
+                color: "#27ae60",
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              🧠 LLaVA: содержимое рисунка
+            </h4>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 10,
+              }}
+            >
+              {result.contentAnalysis.detectedObjects.map((obj, i) => (
+                <span
+                  key={i}
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #a9dfbf",
+                    borderRadius: 20,
+                    padding: "3px 10px",
+                    fontSize: 13,
+                    color: "#2d3436",
+                  }}
+                >
+                  {obj}
+                </span>
+              ))}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                fontSize: 13,
+                color: "#555",
+                flexWrap: "wrap",
+              }}
+            >
+              {result.contentAnalysis.hasHuman && <span>👤 Люди</span>}
+              {result.contentAnalysis.hasSun && <span>☀️ Солнце</span>}
+              {result.contentAnalysis.hasHouse && <span>🏠 Дом</span>}
+              {result.contentAnalysis.hasNature && <span>🌿 Природа</span>}
+              {result.contentAnalysis.hasSmile && <span>😊 Улыбка</span>}
+              {result.contentAnalysis.hasDarkElements && (
+                <span>🌑 Тёмные элементы</span>
+              )}
+            </div>
+            {result.contentAnalysis.symbolism && (
+              <p
+                style={{
+                  marginTop: 10,
+                  fontSize: 13,
+                  color: "#2d6a4f",
+                  fontStyle: "italic",
+                }}
+              >
+                {result.contentAnalysis.symbolism}
+              </p>
+            )}
+          </div>
+        )}
+
+      {/* Emotions + Color/Composition grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div className="card">
           <h3
@@ -107,6 +216,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Color */}
           <div className="card">
             <h3
               style={{
@@ -202,6 +312,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
             </p>
           </div>
 
+          {/* Composition */}
           <div className="card">
             <h3
               style={{
@@ -268,6 +379,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </div>
       </div>
 
+      {/* Psychological portrait */}
       <div
         className="card"
         style={{
@@ -291,6 +403,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </p>
       </div>
 
+      {/* Risks + Recommendations */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {result.riskFactors.length > 0 && (
           <div className="card">
@@ -349,6 +462,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </div>
       </div>
 
+      {/* Color ratios chart */}
       {Object.keys(result.colorAnalysis.colorRatios).length > 0 && (
         <div className="card">
           <h3
