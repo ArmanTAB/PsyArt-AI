@@ -1,6 +1,14 @@
+// 5 базовых эмоций
+export type EmotionName =
+  | "радость"
+  | "грусть"
+  | "тревога"
+  | "агрессия"
+  | "спокойствие";
+
 export interface Emotion {
-  name: string;
-  intensity: number;
+  name: EmotionName;
+  intensity: number; // 0–100
   evidence: string;
 }
 
@@ -14,6 +22,7 @@ export interface ColorAnalysis {
   colorRatios: Record<string, number>;
   colorCoverage?: number;
   nVividColors?: number;
+  warmRatio?: number;
   interpretation: string;
 }
 
@@ -59,7 +68,7 @@ export type OverallState =
   | "норма"
   | "требует_внимания"
   | "требует_консультации";
-export type AnalysisMode = "llava" | "opencv" | "opencv_fallback" | "auto";
+export type AnalysisMode = "llava" | "opencv" | "opencv_fallback";
 
 export interface AnalysisResult {
   colorAnalysis: ColorAnalysis;
@@ -75,6 +84,7 @@ export interface AnalysisResult {
   confidence: number;
   analysisMode?: AnalysisMode;
   fallbackReason?: string;
+  moduleWeights?: Record<string, number>;
 }
 
 export interface HistoryEntry {
