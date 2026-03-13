@@ -21,7 +21,7 @@ interface ApiStatus {
   checking: boolean;
 }
 
-type Tab = "opencv" | "groq" | "claude";
+type Tab = "opencv" | "groq";
 
 const TAB_META: Record<
   Tab,
@@ -47,13 +47,6 @@ const TAB_META: Record<
     desc: "LLaMA-4 Vision — понимает содержание и сюжет рисунка. Бесплатно.",
     speed: "2–5 сек",
   },
-  claude: {
-    label: "Claude",
-    icon: "🧠",
-    color: "#6c5ce7",
-    desc: "Глубокий психологический анализ по методологиям Люшера, Маховер, Копытина.",
-    speed: "5–10 сек",
-  },
 };
 
 export default function AnalysisPage({
@@ -68,14 +61,10 @@ export default function AnalysisPage({
   onContextChange,
   onAnalyze,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("claude");
+  const [tab, setTab] = useState<Tab>("groq");
   const [hybrid, setHybrid] = useState(true);
 
   const [groqStatus, setGroqStatus] = useState<ApiStatus>({
-    available: false,
-    checking: true,
-  });
-  const [claudeStatus, setClaudeStatus] = useState<ApiStatus>({
     available: false,
     checking: true,
   });
@@ -83,19 +72,12 @@ export default function AnalysisPage({
   useEffect(() => {
     const checkAll = async () => {
       try {
-        const [gr, cl] = await Promise.all([
-          fetch("http://localhost:8000/groq/status").then((r) => r.json()),
-          fetch("http://localhost:8000/claude/status").then((r) => r.json()),
-        ]);
+        const gr = await fetch("http://localhost:8000/groq/status").then((r) =>
+          r.json(),
+        );
         setGroqStatus({ ...gr, checking: false });
-        setClaudeStatus({ ...cl, checking: false });
       } catch {
         setGroqStatus({
-          available: false,
-          error: "Сервер недоступен",
-          checking: false,
-        });
-        setClaudeStatus({
           available: false,
           error: "Сервер недоступен",
           checking: false,
@@ -108,15 +90,12 @@ export default function AnalysisPage({
   const isAvailable = (t: Tab) => {
     if (t === "opencv") return true;
     if (t === "groq") return groqStatus.available;
-    if (t === "claude") return claudeStatus.available;
     return false;
   };
 
-  // Формируем строку mode для onAnalyze
   const getMode = (): string => {
     if (tab === "opencv") return "opencv";
     if (tab === "groq") return hybrid ? "hybrid" : "groq";
-    if (tab === "claude") return hybrid ? "claude_hybrid" : "claude";
     return "opencv";
   };
 
@@ -124,15 +103,10 @@ export default function AnalysisPage({
 
   const statusOf = (t: Tab): ApiStatus => {
     if (t === "groq") return groqStatus;
-    if (t === "claude") return claudeStatus;
     return { available: true, checking: false };
   };
 
   const loadingMsg = () => {
-    if (tab === "claude")
-      return hybrid
-        ? "Claude + OpenCV анализируют (5–15 сек)..."
-        : "Claude анализирует (5–10 сек)...";
     if (tab === "groq")
       return hybrid
         ? "Groq + OpenCV анализируют (3–8 сек)..."
@@ -237,8 +211,8 @@ export default function AnalysisPage({
               {TAB_META[tab].desc}
             </p>
 
-            {/* Гибридный режим — только для groq и claude */}
-            {tab !== "opencv" && (
+            {/* Гибридный режим — только для groq */}
+            {tab === "groq" && (
               <label
                 style={{
                   display: "flex",
@@ -246,8 +220,8 @@ export default function AnalysisPage({
                   gap: 10,
                   padding: "10px 14px",
                   borderRadius: 8,
-                  background: hybrid ? "#f0f0ff" : "#f8f9fa",
-                  border: `1px solid ${hybrid ? "#a29bfe" : "#dee2e6"}`,
+                  background: hybrid ? "#f0fff8" : "#f8f9fa",
+                  border: `1px solid ${hybrid ? "#00b894" : "#dee2e6"}`,
                   cursor: "pointer",
                   marginBottom: 12,
                 }}
@@ -265,9 +239,7 @@ export default function AnalysisPage({
                     🔀 Гибридный режим (+OpenCV)
                   </div>
                   <div style={{ fontSize: 11, color: "#636e72" }}>
-                    {tab === "claude"
-                      ? "Claude 70% + OpenCV 30% — точные метрики + глубокая психология"
-                      : "Groq 65% + OpenCV 35% — семантика + точные метрики"}
+                    Groq 65% + OpenCV 35% — семантика + точные метрики
                   </div>
                 </div>
               </label>
@@ -285,17 +257,11 @@ export default function AnalysisPage({
                 { label: "Скорость", value: TAB_META[tab].speed },
                 {
                   label: "Уверен.",
-                  value:
-                    tab === "claude" ? "95%" : tab === "groq" ? "88%" : "72%",
+                  value: tab === "groq" ? "88%" : "72%",
                 },
                 {
                   label: "Метод",
-                  value:
-                    tab === "opencv"
-                      ? "Пиксели"
-                      : tab === "groq"
-                        ? "LLaMA-4"
-                        : "Claude",
+                  value: tab === "opencv" ? "Пиксели" : "LLaMA-4",
                 },
               ].map(({ label, value }) => (
                 <div
@@ -322,9 +288,9 @@ export default function AnalysisPage({
             </div>
 
             {/* Статус ошибки API */}
-            {tab !== "opencv" &&
-              !statusOf(tab).checking &&
-              !statusOf(tab).available && (
+            {tab === "groq" &&
+              !groqStatus.checking &&
+              !groqStatus.available && (
                 <div
                   style={{
                     marginTop: 12,
@@ -336,7 +302,7 @@ export default function AnalysisPage({
                     color: "#e67e22",
                   }}
                 >
-                  ⚠ {TAB_META[tab].label} недоступен — добавь{" "}
+                  ⚠ Groq недоступен — добавь{" "}
                   <code
                     style={{
                       background: "#fff",
@@ -344,7 +310,7 @@ export default function AnalysisPage({
                       borderRadius: 3,
                     }}
                   >
-                    {tab === "claude" ? "ANTHROPIC_API_KEY" : "GROQ_API_KEY"}
+                    GROQ_API_KEY
                   </code>{" "}
                   в{" "}
                   <code
@@ -356,7 +322,7 @@ export default function AnalysisPage({
                   >
                     core/.env
                   </code>
-                  {statusOf(tab).error && (
+                  {groqStatus.error && (
                     <div
                       style={{
                         marginTop: 4,
@@ -365,7 +331,7 @@ export default function AnalysisPage({
                         fontFamily: "monospace",
                       }}
                     >
-                      {statusOf(tab).error}
+                      {groqStatus.error}
                     </div>
                   )}
                 </div>
@@ -437,14 +403,19 @@ export default function AnalysisPage({
           disabled={
             !previewUrl || loading || (tab !== "opencv" && !isAvailable(tab))
           }
-          style={{ background: loading ? "#b2bec3" : activeColor }}
+          style={{
+            background:
+              loading || (tab !== "opencv" && !isAvailable(tab))
+                ? "#b2bec3"
+                : activeColor,
+          }}
         >
           {loading ? (
             <>
               <span className="spin">⟳</span> {loadingMsg()}
             </>
           ) : (
-            `▶ Запустить анализ · ${TAB_META[tab].icon} ${TAB_META[tab].label}${tab !== "opencv" && hybrid ? " + OpenCV" : ""}`
+            `▶ Запустить анализ · ${TAB_META[tab].icon} ${TAB_META[tab].label}${tab === "groq" && hybrid ? " + OpenCV" : ""}`
           )}
         </button>
       </div>

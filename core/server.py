@@ -1,5 +1,5 @@
 """
-АртМинд — FastAPI Backend v6.0
+АртМинд — FastAPI Backend v6.1
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Запуск: py -3.11 -m uvicorn server:app --reload --port 8000
 
@@ -7,11 +7,8 @@
   /analyze              — авто (лучший доступный)
   /analyze/opencv       — только OpenCV
   /analyze/groq         — Groq Vision (LLaMA-4)
-  /analyze/claude       — Claude Vision (лучшее качество)
   /analyze/hybrid       — Groq + OpenCV (65/35)
-  /analyze/claude_hybrid— Claude + OpenCV (70/30)
   /groq/status          — статус Groq API
-  /claude/status        — статус Claude API
 """
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -21,14 +18,13 @@ from typing import Optional
 import traceback
 import asyncio
 
-from analyzer       import DrawingAnalyzer
-from groq_analyzer  import analyze_with_groq,   check_groq_available,   _hybrid_merge
-from claude_analyzer import analyze_with_claude, check_claude_available, _hybrid_merge_claude
+from analyzer      import DrawingAnalyzer
+from groq_analyzer import analyze_with_groq, check_groq_available, _hybrid_merge
 
 app = FastAPI(
     title="АртМинд API",
     description="Психоэмоциональный анализ детских рисунков",
-    version="6.0.0",
+    version="6.1.0",
 )
 
 app.add_middleware(
@@ -69,24 +65,19 @@ async def _run_opencv(image_bytes: bytes, age: Optional[int], ctx: str) -> dict:
 def root():
     return {
         "status":  "ok",
-        "service": "АртМинд API v6.0",
-        "modes":   ["auto", "opencv", "groq", "claude", "hybrid", "claude_hybrid"],
+        "service": "АртМинд API v6.1",
+        "modes":   ["auto", "opencv", "groq", "hybrid"],
     }
 
 
 @app.get("/health")
 async def health():
-    groq_s, claude_s = await asyncio.gather(
-        check_groq_available(),
-        check_claude_available(),
-    )
+    groq_s = await check_groq_available()
     return {
-        "status":        "healthy",
-        "opencv_ready":  True,
-        "groq_ready":    groq_s["available"],
-        "claude_ready":  claude_s["available"],
-        "groq":          groq_s,
-        "claude":        claude_s,
+        "status":       "healthy",
+        "opencv_ready": True,
+        "groq_ready":   groq_s["available"],
+        "groq":         groq_s,
     }
 
 
@@ -95,13 +86,8 @@ async def groq_status():
     return await check_groq_available()
 
 
-@app.get("/claude/status")
-async def claude_status():
-    return await check_claude_available()
-
-
 # ═══════════════════════════════════════
-# ГИБРИДНЫЕ ЗАПУСКИ
+# ГИБРИДНЫЙ ЗАПУСК
 # ═══════════════════════════════════════
 
 async def _do_groq_hybrid(image_bytes: bytes, age: Optional[int], ctx: str):
@@ -124,28 +110,8 @@ async def _do_groq_hybrid(image_bytes: bytes, age: Optional[int], ctx: str):
             raise HTTPException(status_code=500, detail=str(e2))
 
 
-async def _do_claude_hybrid(image_bytes: bytes, age: Optional[int], ctx: str):
-    try:
-        opencv_result, claude_result = await asyncio.gather(
-            _run_opencv(image_bytes, age, ctx),
-            analyze_with_claude(image_bytes, child_age=age, context=ctx),
-        )
-        result = _hybrid_merge_claude(claude_result, opencv_result)
-        result["analysisMode"] = "claude_hybrid"
-        return JSONResponse(content=result)
-    except Exception as e:
-        traceback.print_exc()
-        try:
-            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
-            result["analysisMode"]   = "opencv_fallback"
-            result["fallbackReason"] = f"Claude недоступен: {e}"
-            return JSONResponse(content=result)
-        except Exception as e2:
-            raise HTTPException(status_code=500, detail=str(e2))
-
-
 # ═══════════════════════════════════════
-# АВТО-РЕЖИМ: Claude > Groq > OpenCV
+# АВТО-РЕЖИМ: Groq hybrid > OpenCV
 # ═══════════════════════════════════════
 
 @app.post("/analyze")
@@ -159,8 +125,6 @@ async def analyze_auto(
     image_bytes = await _read_image(file)
     ctx = context or ""
 
-    if mode == "claude_hybrid":
-        return await _do_claude_hybrid(image_bytes, age, ctx)
     if mode == "hybrid":
         return await _do_groq_hybrid(image_bytes, age, ctx)
 
@@ -181,28 +145,15 @@ async def analyze_auto(
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=str(e))
 
-    if mode == "claude":
-        try:
-            result = await analyze_with_claude(image_bytes, child_age=age, context=ctx)
-            return JSONResponse(content=result)
-        except Exception as e:
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=str(e))
-
-    # auto: Claude hybrid > Groq hybrid > OpenCV
-    claude_s, groq_s = await asyncio.gather(
-        check_claude_available(),
-        check_groq_available(),
-    )
-    if claude_s["available"]:
-        return await _do_claude_hybrid(image_bytes, age, ctx)
-    elif groq_s["available"]:
+    # auto: Groq hybrid > OpenCV
+    groq_s = await check_groq_available()
+    if groq_s["available"]:
         return await _do_groq_hybrid(image_bytes, age, ctx)
     else:
         try:
             result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
             result["analysisMode"]   = "opencv"
-            result["fallbackReason"] = "Claude и Groq недоступны"
+            result["fallbackReason"] = "Groq недоступен"
             return JSONResponse(content=result)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -245,22 +196,6 @@ async def analyze_groq_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/analyze/claude")
-async def analyze_claude_endpoint(
-    file:    UploadFile    = File(...),
-    age:     Optional[int] = Form(None),
-    context: Optional[str] = Form(""),
-):
-    _validate_image(file)
-    image_bytes = await _read_image(file)
-    try:
-        result = await analyze_with_claude(image_bytes, child_age=age, context=context or "")
-        return JSONResponse(content=result)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.post("/analyze/hybrid")
 async def analyze_groq_hybrid(
     file:    UploadFile    = File(...),
@@ -270,14 +205,3 @@ async def analyze_groq_hybrid(
     _validate_image(file)
     image_bytes = await _read_image(file)
     return await _do_groq_hybrid(image_bytes, age, context or "")
-
-
-@app.post("/analyze/claude_hybrid")
-async def analyze_claude_hybrid(
-    file:    UploadFile    = File(...),
-    age:     Optional[int] = Form(None),
-    context: Optional[str] = Form(""),
-):
-    _validate_image(file)
-    image_bytes = await _read_image(file)
-    return await _do_claude_hybrid(image_bytes, age, context or "")
