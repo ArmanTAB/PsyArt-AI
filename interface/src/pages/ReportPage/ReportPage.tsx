@@ -9,6 +9,15 @@ interface Props {
   onBack: () => void;
 }
 
+const MODE_BADGE: Record<string, { bg: string; label: string }> = {
+  claude: { bg: "#6c5ce7", label: "🧠 Claude" },
+  claude_hybrid: { bg: "#a29bfe", label: "🧠+🔬 Claude+OpenCV" },
+  groq: { bg: "#00b894", label: "🧠 Groq" },
+  hybrid: { bg: "#fd79a8", label: "🔀 Гибрид" },
+  opencv: { bg: "#0984e3", label: "🔬 OpenCV" },
+  opencv_fallback: { bg: "#e17055", label: "⚠ OpenCV (fallback)" },
+};
+
 export default function ReportPage({ result, age, onBack }: Props) {
   if (!result) {
     return (
@@ -29,12 +38,16 @@ export default function ReportPage({ result, age, onBack }: Props) {
     );
   }
 
+  const modeBadge = result.analysisMode
+    ? (MODE_BADGE[result.analysisMode] ?? MODE_BADGE["opencv"])
+    : null;
+
   return (
     <div
       className="fade-in"
       style={{ display: "flex", flexDirection: "column", gap: 20 }}
     >
-      {/* Header card */}
+      {/* Header */}
       <div
         className="card"
         style={{
@@ -57,32 +70,23 @@ export default function ReportPage({ result, age, onBack }: Props) {
             <div style={{ color: "#a29bfe", fontSize: 12, letterSpacing: 1 }}>
               ПСИХОЛОГИЧЕСКИЙ ОТЧЁТ
             </div>
-            {/* Бейдж режима */}
-            {result.analysisMode && (
+            {modeBadge && (
               <span
                 style={{
                   fontSize: 11,
                   fontWeight: 700,
                   padding: "2px 8px",
                   borderRadius: 20,
-                  background:
-                    result.analysisMode === "llava"
-                      ? "#00b894"
-                      : result.analysisMode === "opencv_fallback"
-                        ? "#e17055"
-                        : "#0984e3",
+                  background: modeBadge.bg,
                   color: "#fff",
                   letterSpacing: 0.5,
                 }}
               >
-                {result.analysisMode === "llava"
-                  ? "🧠 LLaVA"
-                  : result.analysisMode === "opencv_fallback"
-                    ? "⚠ OpenCV (fallback)"
-                    : "🔬 OpenCV"}
+                {modeBadge.label}
               </span>
             )}
           </div>
+
           <h2
             style={{
               fontFamily: "DM Serif Display, serif",
@@ -92,17 +96,34 @@ export default function ReportPage({ result, age, onBack }: Props) {
           >
             Результаты анализа
           </h2>
+
           {age && (
             <p style={{ color: "#b2bec3", fontSize: 14, marginTop: 4 }}>
               Возраст: {age} лет
             </p>
           )}
+
+          {result.ageNormLabel && (
+            <p style={{ color: "#a29bfe", fontSize: 12, marginTop: 4 }}>
+              📐 {result.ageNormLabel}
+            </p>
+          )}
+
           {result.fallbackReason && (
             <p style={{ color: "#fdcb6e", fontSize: 12, marginTop: 4 }}>
               ⚠ {result.fallbackReason}
             </p>
           )}
+
+          {result.contextAnalysis &&
+            result.contextAnalysis.stress_level > 0 && (
+              <p style={{ color: "#e17055", fontSize: 12, marginTop: 4 }}>
+                🔴 Стресс-контекст учтён (
+                {result.contextAnalysis.stress_keywords.join(", ")})
+              </p>
+            )}
         </div>
+
         <div style={{ textAlign: "right" }}>
           <StatusBadge status={result.overallState} />
           <div style={{ color: "#636e72", fontSize: 13, marginTop: 8 }}>
@@ -120,290 +141,88 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </div>
       </div>
 
-      {/* LLaVA: блок распознанного содержимого */}
+      {/* Содержание рисунка */}
       {result.contentAnalysis &&
         result.contentAnalysis.detectedObjects?.length > 0 && (
-          <div
-            className="card"
-            style={{ background: "#eafaf1", borderColor: "#a9dfbf" }}
-          >
-            <h4
+          <div className="card">
+            <h3
               style={{
-                fontSize: 13,
-                color: "#27ae60",
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-                marginBottom: 10,
+                fontFamily: "DM Serif Display, serif",
+                fontSize: 18,
+                marginBottom: 12,
+                color: "#2d3436",
               }}
             >
-              🧠 LLaVA: содержимое рисунка
-            </h4>
+              🎨 Содержание рисунка
+            </h3>
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
                 gap: 8,
-                marginBottom: 10,
+                marginBottom: 12,
               }}
             >
-              {result.contentAnalysis.detectedObjects.map((obj, i) => (
+              {result.contentAnalysis.detectedObjects.map((obj) => (
                 <span
-                  key={i}
+                  key={obj}
                   style={{
-                    background: "#fff",
-                    border: "1px solid #a9dfbf",
+                    background: "#f0f0ff",
+                    border: "1px solid #a29bfe",
                     borderRadius: 20,
-                    padding: "3px 10px",
+                    padding: "4px 12px",
                     fontSize: 13,
-                    color: "#2d3436",
+                    color: "#6c5ce7",
+                    fontWeight: 600,
                   }}
                 >
                   {obj}
                 </span>
               ))}
             </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                fontSize: 13,
-                color: "#555",
-                flexWrap: "wrap",
-              }}
-            >
-              {result.contentAnalysis.hasHuman && <span>👤 Люди</span>}
-              {result.contentAnalysis.hasSun && <span>☀️ Солнце</span>}
-              {result.contentAnalysis.hasHouse && <span>🏠 Дом</span>}
-              {result.contentAnalysis.hasNature && <span>🌿 Природа</span>}
-              {result.contentAnalysis.hasSmile && <span>😊 Улыбка</span>}
-              {result.contentAnalysis.hasDarkElements && (
-                <span>🌑 Тёмные элементы</span>
-              )}
-            </div>
             {result.contentAnalysis.symbolism && (
-              <p
-                style={{
-                  marginTop: 10,
-                  fontSize: 13,
-                  color: "#2d6a4f",
-                  fontStyle: "italic",
-                }}
-              >
+              <p style={{ fontSize: 14, color: "#636e72", lineHeight: 1.6 }}>
                 {result.contentAnalysis.symbolism}
               </p>
             )}
           </div>
         )}
 
-      {/* Emotions + Color/Composition grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <div className="card">
-          <h3
-            style={{
-              fontFamily: "DM Serif Display, serif",
-              fontSize: 20,
-              marginBottom: 20,
-              color: "#2d3436",
-            }}
-          >
-            Эмоциональный профиль
-          </h3>
-          {result.emotions.length > 0 ? (
-            result.emotions.map((e) => <EmotionBar key={e.name} {...e} />)
-          ) : (
-            <p style={{ color: "#b2bec3" }}>Эмоции не определены</p>
-          )}
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Color */}
-          <div className="card">
-            <h3
-              style={{
-                fontFamily: "DM Serif Display, serif",
-                fontSize: 18,
-                marginBottom: 14,
-                color: "#2d3436",
-              }}
-            >
-              🎨 Цветовой анализ
-            </h3>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                marginBottom: 12,
-                alignItems: "center",
-              }}
-            >
-              {result.colorAnalysis.dominant.map((hex) => (
-                <ColorSwatch key={hex} hex={hex} />
-              ))}
-              <span
-                style={{
-                  background: "#e8f5e9",
-                  color: "#2e7d32",
-                  padding: "3px 10px",
-                  borderRadius: 20,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  marginLeft: 4,
-                }}
-              >
-                {result.colorAnalysis.palette}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 8,
-                marginBottom: 12,
-              }}
-            >
-              {(
-                [
-                  [
-                    "Яркость",
-                    result.colorAnalysis.brightnessValue + "%",
-                    result.colorAnalysis.brightnessClass,
-                  ],
-                  [
-                    "Насыщенность",
-                    result.colorAnalysis.saturationValue + "%",
-                    result.colorAnalysis.saturationClass,
-                  ],
-                ] as [string, string, string][]
-              ).map(([label, val, cls]) => (
-                <div
-                  key={label}
-                  style={{
-                    background: "#f8f8f8",
-                    borderRadius: 10,
-                    padding: "10px 14px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#b2bec3",
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {label}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "JetBrains Mono, monospace",
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: "#2d3436",
-                    }}
-                  >
-                    {val}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#636e72" }}>{cls}</div>
-                </div>
-              ))}
-            </div>
-            <p style={{ fontSize: 13, color: "#636e72", lineHeight: 1.7 }}>
-              {result.colorAnalysis.interpretation}
-            </p>
-          </div>
-
-          {/* Composition */}
-          <div className="card">
-            <h3
-              style={{
-                fontFamily: "DM Serif Display, serif",
-                fontSize: 18,
-                marginBottom: 14,
-                color: "#2d3436",
-              }}
-            >
-              📐 Композиция
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 8,
-                marginBottom: 12,
-              }}
-            >
-              {(
-                [
-                  ["Заполнение", result.composition.fillRatio + "%"],
-                  ["Объектов", String(result.composition.numObjects)],
-                  ["Расположение", result.composition.location],
-                ] as [string, string][]
-              ).map(([label, val]) => (
-                <div
-                  key={label}
-                  style={{
-                    background: "#f8f8f8",
-                    borderRadius: 10,
-                    padding: "10px 14px",
-                    textAlign: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#b2bec3",
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {label}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "JetBrains Mono, monospace",
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: "#2d3436",
-                      marginTop: 4,
-                    }}
-                  >
-                    {val}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p style={{ fontSize: 13, color: "#636e72", lineHeight: 1.7 }}>
-              {result.composition.interpretation}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Psychological portrait */}
-      <div
-        className="card"
-        style={{
-          background: "#fffbf0",
-          borderColor: "#ffe082",
-          borderLeft: "4px solid #FFD93D",
-        }}
-      >
+      {/* Эмоциональный профиль */}
+      <div className="card">
         <h3
           style={{
             fontFamily: "DM Serif Display, serif",
-            fontSize: 20,
+            fontSize: 18,
+            marginBottom: 16,
+            color: "#2d3436",
+          }}
+        >
+          Эмоциональный профиль
+        </h3>
+        {result.emotions.map((e) => (
+          <EmotionBar key={e.name} {...e} />
+        ))}
+      </div>
+
+      {/* Психологический портрет */}
+      <div className="card">
+        <h3
+          style={{
+            fontFamily: "DM Serif Display, serif",
+            fontSize: 18,
             marginBottom: 12,
             color: "#2d3436",
           }}
         >
           Психологический портрет
         </h3>
-        <p style={{ fontSize: 16, color: "#4a4a4a", lineHeight: 1.8 }}>
+        <p style={{ fontSize: 15, color: "#4a4a4a", lineHeight: 1.8 }}>
           {result.psychologicalPortrait}
         </p>
       </div>
 
-      {/* Risks + Recommendations */}
+      {/* Риски + Рекомендации */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {result.riskFactors.length > 0 && (
           <div className="card">
@@ -462,69 +281,105 @@ export default function ReportPage({ result, age, onBack }: Props) {
         </div>
       </div>
 
-      {/* Color ratios chart */}
+      {/* Цветовой анализ */}
       {Object.keys(result.colorAnalysis.colorRatios).length > 0 && (
         <div className="card">
           <h3
             style={{
               fontFamily: "DM Serif Display, serif",
               fontSize: 18,
-              marginBottom: 16,
+              marginBottom: 14,
               color: "#2d3436",
             }}
           >
-            📊 Распределение цветовых групп
+            🎨 Цветовой анализ (Люшер)
           </h3>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            {result.colorAnalysis.dominant.map((hex) => (
+              <ColorSwatch key={hex} hex={hex} />
+            ))}
+          </div>
+          <p style={{ fontSize: 14, color: "#636e72", marginBottom: 10 }}>
+            {result.colorAnalysis.interpretation}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {Object.entries(result.colorAnalysis.colorRatios)
               .sort(([, a], [, b]) => b - a)
-              .map(([name, pct]) => (
-                <div
+              .slice(0, 6)
+              .map(([name, ratio]) => (
+                <span
                   key={name}
                   style={{
+                    fontSize: 12,
+                    padding: "3px 10px",
+                    borderRadius: 12,
                     background: "#f5f5f5",
-                    borderRadius: 10,
-                    padding: "8px 14px",
-                    minWidth: 100,
+                    color: "#4a4a4a",
                   }}
                 >
-                  <div
-                    style={{ fontSize: 12, color: "#636e72", marginBottom: 4 }}
-                  >
-                    {name}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "JetBrains Mono, monospace",
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: "#2d3436",
-                    }}
-                  >
-                    {pct}%
-                  </div>
-                  <div
-                    style={{
-                      height: 4,
-                      background: "#e0e0e0",
-                      borderRadius: 4,
-                      marginTop: 6,
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${Math.min(pct * 3, 100)}%`,
-                        background: "#6c5ce7",
-                        borderRadius: 4,
-                      }}
-                    />
-                  </div>
-                </div>
+                  {name} {ratio}%
+                </span>
               ))}
           </div>
         </div>
       )}
+
+      {/* Зональный анализ */}
+      {result.zoneAnalysis && (
+        <div className="card">
+          <h3
+            style={{
+              fontFamily: "DM Serif Display, serif",
+              fontSize: 18,
+              marginBottom: 12,
+              color: "#2d3436",
+            }}
+          >
+            📐 Зональный анализ (Маховер)
+          </h3>
+          <p style={{ fontSize: 14, color: "#636e72", marginBottom: 12 }}>
+            {result.zoneAnalysis.balanceInterpretation}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {Object.entries(result.zoneAnalysis.zoneClasses).map(
+              ([zone, cls]) => (
+                <span
+                  key={zone}
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 12px",
+                    borderRadius: 12,
+                    background:
+                      cls === "высокая"
+                        ? "#eafaf1"
+                        : cls === "низкая"
+                          ? "#fff5f5"
+                          : "#f5f5f5",
+                    color:
+                      cls === "высокая"
+                        ? "#27ae60"
+                        : cls === "низкая"
+                          ? "#e17055"
+                          : "#636e72",
+                    fontWeight: 600,
+                  }}
+                >
+                  {zone}: {cls}
+                </span>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Кнопка назад */}
+      <button
+        className="btn-primary"
+        style={{ background: "#636e72", marginTop: 8 }}
+        onClick={onBack}
+      >
+        ← Новый анализ
+      </button>
     </div>
   );
 }

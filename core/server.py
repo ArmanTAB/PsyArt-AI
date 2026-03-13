@@ -1,13 +1,17 @@
 """
-АртМинд — FastAPI Backend v2.0
+АртМинд — FastAPI Backend v6.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Запуск: uvicorn server:app --reload --port 8000
+Запуск: py -3.11 -m uvicorn server:app --reload --port 8000
 
 Режимы анализа:
-  /analyze        — автовыбор (LLaVA если доступна, иначе OpenCV)
-  /analyze/opencv — принудительно OpenCV (быстро, без LLaVA)
-  /analyze/llava  — принудительно LLaVA (требует Ollama)
-  /llava/status   — проверка доступности Ollama
+  /analyze              — авто (лучший доступный)
+  /analyze/opencv       — только OpenCV
+  /analyze/groq         — Groq Vision (LLaMA-4)
+  /analyze/claude       — Claude Vision (лучшее качество)
+  /analyze/hybrid       — Groq + OpenCV (65/35)
+  /analyze/claude_hybrid— Claude + OpenCV (70/30)
+  /groq/status          — статус Groq API
+  /claude/status        — статус Claude API
 """
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -15,15 +19,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
 import traceback
+import asyncio
 
-from analyzer import DrawingAnalyzer
-from llava_analyzer import analyze_with_llava, check_ollama_available
-import httpx
+from analyzer       import DrawingAnalyzer
+from groq_analyzer  import analyze_with_groq,   check_groq_available,   _hybrid_merge
+from claude_analyzer import analyze_with_claude, check_claude_available, _hybrid_merge_claude
 
 app = FastAPI(
     title="АртМинд API",
-    description="Психоэмоциональный анализ детских рисунков (LLaVA + OpenCV)",
-    version="2.0.0",
+    description="Психоэмоциональный анализ детских рисунков",
+    version="6.0.0",
 )
 
 app.add_middleware(
@@ -40,6 +45,7 @@ def _validate_image(file: UploadFile):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Файл должен быть изображением")
 
+
 async def _read_image(file: UploadFile) -> bytes:
     data = await file.read()
     if len(data) > 15 * 1024 * 1024:
@@ -47,31 +53,100 @@ async def _read_image(file: UploadFile) -> bytes:
     return data
 
 
+# ── Вспомогательная функция запуска OpenCV в executor ──────────────────────
+async def _run_opencv(image_bytes: bytes, age: Optional[int], ctx: str) -> dict:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None, opencv_analyzer.analyze, image_bytes, age, ctx
+    )
+
+
+# ═══════════════════════════════════════
+# СЛУЖЕБНЫЕ ЭНДПОИНТЫ
+# ═══════════════════════════════════════
+
 @app.get("/")
 def root():
     return {
         "status":  "ok",
-        "service": "АртМинд API v2.0",
-        "modes":   ["auto", "opencv", "llava"],
+        "service": "АртМинд API v6.0",
+        "modes":   ["auto", "opencv", "groq", "claude", "hybrid", "claude_hybrid"],
     }
 
 
 @app.get("/health")
 async def health():
-    ollama = await check_ollama_available()
+    groq_s, claude_s = await asyncio.gather(
+        check_groq_available(),
+        check_claude_available(),
+    )
     return {
-        "status":       "healthy",
-        "opencv_ready": True,
-        "llava_ready":  ollama["available"] and ollama.get("has_llava", False),
-        "ollama":       ollama,
+        "status":        "healthy",
+        "opencv_ready":  True,
+        "groq_ready":    groq_s["available"],
+        "claude_ready":  claude_s["available"],
+        "groq":          groq_s,
+        "claude":        claude_s,
     }
 
 
-@app.get("/llava/status")
-async def llava_status():
-    """Проверить доступность Ollama и модели LLaVA."""
-    return await check_ollama_available()
+@app.get("/groq/status")
+async def groq_status():
+    return await check_groq_available()
 
+
+@app.get("/claude/status")
+async def claude_status():
+    return await check_claude_available()
+
+
+# ═══════════════════════════════════════
+# ГИБРИДНЫЕ ЗАПУСКИ
+# ═══════════════════════════════════════
+
+async def _do_groq_hybrid(image_bytes: bytes, age: Optional[int], ctx: str):
+    try:
+        opencv_result, groq_result = await asyncio.gather(
+            _run_opencv(image_bytes, age, ctx),
+            analyze_with_groq(image_bytes, child_age=age, context=ctx),
+        )
+        result = _hybrid_merge(groq_result, opencv_result)
+        result["analysisMode"] = "hybrid"
+        return JSONResponse(content=result)
+    except Exception as e:
+        traceback.print_exc()
+        try:
+            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
+            result["analysisMode"]   = "opencv_fallback"
+            result["fallbackReason"] = f"Groq недоступен: {e}"
+            return JSONResponse(content=result)
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=str(e2))
+
+
+async def _do_claude_hybrid(image_bytes: bytes, age: Optional[int], ctx: str):
+    try:
+        opencv_result, claude_result = await asyncio.gather(
+            _run_opencv(image_bytes, age, ctx),
+            analyze_with_claude(image_bytes, child_age=age, context=ctx),
+        )
+        result = _hybrid_merge_claude(claude_result, opencv_result)
+        result["analysisMode"] = "claude_hybrid"
+        return JSONResponse(content=result)
+    except Exception as e:
+        traceback.print_exc()
+        try:
+            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
+            result["analysisMode"]   = "opencv_fallback"
+            result["fallbackReason"] = f"Claude недоступен: {e}"
+            return JSONResponse(content=result)
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=str(e2))
+
+
+# ═══════════════════════════════════════
+# АВТО-РЕЖИМ: Claude > Groq > OpenCV
+# ═══════════════════════════════════════
 
 @app.post("/analyze")
 async def analyze_auto(
@@ -80,61 +155,62 @@ async def analyze_auto(
     context: Optional[str] = Form(""),
     mode:    Optional[str] = Form("auto"),
 ):
-    """
-    Анализ рисунка.
-    - **mode**: auto (по умолчанию) | opencv | llava
-    """
     _validate_image(file)
     image_bytes = await _read_image(file)
     ctx = context or ""
 
-    # Определяем режим
-    if mode == "llava":
-        use_llava = True
-    elif mode == "opencv":
-        use_llava = False
-    else:
-        ollama = await check_ollama_available()
-        use_llava = ollama["available"] and ollama.get("has_llava", False)
+    if mode == "claude_hybrid":
+        return await _do_claude_hybrid(image_bytes, age, ctx)
+    if mode == "hybrid":
+        return await _do_groq_hybrid(image_bytes, age, ctx)
 
-    if use_llava:
-        try:
-            result = await analyze_with_llava(image_bytes, child_age=age, context=ctx)
-            result["analysisMode"] = "llava"
-            return JSONResponse(content=result)
-        except (httpx.ConnectError, httpx.TimeoutException) as e:
-            if mode == "llava":
-                raise HTTPException(status_code=503,
-                    detail=f"Ollama недоступна: {e}. Запустите: ollama serve")
-            # auto-режим: тихий fallback на OpenCV
-            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
-            result["analysisMode"]   = "opencv_fallback"
-            result["fallbackReason"] = f"LLaVA недоступна: {e}"
-            return JSONResponse(content=result)
-        except ValueError as e:
-            if mode == "llava":
-                raise HTTPException(status_code=422, detail=f"Ошибка парсинга LLaVA: {e}")
-            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
-            result["analysisMode"]   = "opencv_fallback"
-            result["fallbackReason"] = f"LLaVA вернула некорректный ответ"
-            return JSONResponse(content=result)
-        except Exception as e:
-            traceback.print_exc()
-            if mode == "llava":
-                raise HTTPException(status_code=500, detail=f"Ошибка LLaVA: {e}")
-            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
-            result["analysisMode"]   = "opencv_fallback"
-            result["fallbackReason"] = str(e)
-            return JSONResponse(content=result)
-    else:
+    if mode == "opencv":
         try:
             result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
             result["analysisMode"] = "opencv"
             return JSONResponse(content=result)
         except Exception as e:
             traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Ошибка анализа: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
+    if mode == "groq":
+        try:
+            result = await analyze_with_groq(image_bytes, child_age=age, context=ctx)
+            return JSONResponse(content=result)
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
+
+    if mode == "claude":
+        try:
+            result = await analyze_with_claude(image_bytes, child_age=age, context=ctx)
+            return JSONResponse(content=result)
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # auto: Claude hybrid > Groq hybrid > OpenCV
+    claude_s, groq_s = await asyncio.gather(
+        check_claude_available(),
+        check_groq_available(),
+    )
+    if claude_s["available"]:
+        return await _do_claude_hybrid(image_bytes, age, ctx)
+    elif groq_s["available"]:
+        return await _do_groq_hybrid(image_bytes, age, ctx)
+    else:
+        try:
+            result = opencv_analyzer.analyze(image_bytes, child_age=age, context=ctx)
+            result["analysisMode"]   = "opencv"
+            result["fallbackReason"] = "Claude и Groq недоступны"
+            return JSONResponse(content=result)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════
+# ОТДЕЛЬНЫЕ ЭНДПОИНТЫ
+# ═══════════════════════════════════════
 
 @app.post("/analyze/opencv")
 async def analyze_opencv(
@@ -142,7 +218,6 @@ async def analyze_opencv(
     age:     Optional[int] = Form(None),
     context: Optional[str] = Form(""),
 ):
-    """Принудительно OpenCV — быстро, без Ollama."""
     _validate_image(file)
     image_bytes = await _read_image(file)
     try:
@@ -151,30 +226,58 @@ async def analyze_opencv(
         return JSONResponse(content=result)
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Ошибка анализа: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/analyze/llava")
-async def analyze_llava_endpoint(
+@app.post("/analyze/groq")
+async def analyze_groq_endpoint(
     file:    UploadFile    = File(...),
     age:     Optional[int] = Form(None),
     context: Optional[str] = Form(""),
 ):
-    """Принудительно LLaVA — требует запущенной Ollama с llava:7b."""
     _validate_image(file)
     image_bytes = await _read_image(file)
     try:
-        result = await analyze_with_llava(image_bytes, child_age=age, context=context or "")
-        result["analysisMode"] = "llava"
+        result = await analyze_with_groq(image_bytes, child_age=age, context=context or "")
         return JSONResponse(content=result)
-    except httpx.ConnectError:
-        raise HTTPException(status_code=503,
-            detail="Ollama не запущена. Выполните в терминале: ollama serve")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504,
-            detail="LLaVA не ответила за 120 секунд. Попробуйте ещё раз.")
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Ошибка LLaVA: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze/claude")
+async def analyze_claude_endpoint(
+    file:    UploadFile    = File(...),
+    age:     Optional[int] = Form(None),
+    context: Optional[str] = Form(""),
+):
+    _validate_image(file)
+    image_bytes = await _read_image(file)
+    try:
+        result = await analyze_with_claude(image_bytes, child_age=age, context=context or "")
+        return JSONResponse(content=result)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze/hybrid")
+async def analyze_groq_hybrid(
+    file:    UploadFile    = File(...),
+    age:     Optional[int] = Form(None),
+    context: Optional[str] = Form(""),
+):
+    _validate_image(file)
+    image_bytes = await _read_image(file)
+    return await _do_groq_hybrid(image_bytes, age, context or "")
+
+
+@app.post("/analyze/claude_hybrid")
+async def analyze_claude_hybrid(
+    file:    UploadFile    = File(...),
+    age:     Optional[int] = Form(None),
+    context: Optional[str] = Form(""),
+):
+    _validate_image(file)
+    image_bytes = await _read_image(file)
+    return await _do_claude_hybrid(image_bytes, age, context or "")

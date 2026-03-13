@@ -1,4 +1,5 @@
-// 5 базовых эмоций
+// АртМинд — типы данных v6.0
+
 export type EmotionName =
   | "радость"
   | "грусть"
@@ -8,7 +9,7 @@ export type EmotionName =
 
 export interface Emotion {
   name: EmotionName;
-  intensity: number; // 0–100
+  intensity: number;
   evidence: string;
 }
 
@@ -68,7 +69,14 @@ export type OverallState =
   | "норма"
   | "требует_внимания"
   | "требует_консультации";
-export type AnalysisMode = "llava" | "opencv" | "opencv_fallback";
+
+export type AnalysisMode =
+  | "claude"
+  | "claude_hybrid"
+  | "groq"
+  | "hybrid"
+  | "opencv"
+  | "opencv_fallback";
 
 export interface AnalysisResult {
   colorAnalysis: ColorAnalysis;
@@ -85,6 +93,13 @@ export interface AnalysisResult {
   analysisMode?: AnalysisMode;
   fallbackReason?: string;
   moduleWeights?: Record<string, number>;
+  ageNormLabel?: string;
+  contextAnalysis?: {
+    stress_level: number;
+    positive_level: number;
+    stress_keywords: string[];
+    positive_keywords: string[];
+  };
 }
 
 export interface HistoryEntry {
