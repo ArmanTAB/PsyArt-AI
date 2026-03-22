@@ -5,9 +5,9 @@ interface Props {
 }
 
 const STATUS_MAP: Record<OverallState, { bg: string; label: string }> = {
-  норма: { bg: "#00b894", label: "✓ Норма" },
-  требует_внимания: { bg: "#fdcb6e", label: "⚠ Требует внимания" },
-  требует_консультации: { bg: "#e17055", label: "⚡ Нужна консультация" },
+  норма: { bg: "#00b894", label: "Норма" },
+  требует_внимания: { bg: "#fdcb6e", label: "Требует внимания" },
+  требует_консультации: { bg: "#e17055", label: "Нужна консультация" },
 };
 
 export default function StatusBadge({ status }: Props) {

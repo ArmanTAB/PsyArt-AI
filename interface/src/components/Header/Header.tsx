@@ -31,10 +31,13 @@ export default function Header({ activeTab, onTabChange }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 18,
+            fontSize: 15,
+            fontWeight: 700,
+            color: "#fff",
+            fontFamily: "DM Serif Display, serif",
           }}
         >
-          🎨
+          AM
         </div>
         <div>
           <div
@@ -72,18 +75,25 @@ export default function Header({ activeTab, onTabChange }: Props) {
         ))}
       </div>
 
-      <div style={{ fontSize: 13, color: "#b2bec3" }}>
+      <div
+        style={{
+          fontSize: 13,
+          color: "#b2bec3",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
         <span
           style={{
-            background: "#00b894",
+            background: "#6c5ce7",
             width: 8,
             height: 8,
             borderRadius: "50%",
             display: "inline-block",
-            marginRight: 6,
           }}
         />
-        rule-based + OpenCV
+        OpenCV + LLM Vision
       </div>
     </div>
   );

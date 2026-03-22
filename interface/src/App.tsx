@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import "./styles/global.css";
 
-import { AnalysisResult, HistoryEntry } from "./types/analysis";
+import { AnalysisResult } from "./types/analysis";
 import { analyzeDrawing } from "./api/analyzeService";
 
 import Header from "./components/Header/Header";
@@ -19,7 +19,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   const handleFile = useCallback((f: File) => {
     setFile(f);
@@ -42,16 +41,6 @@ export default function App() {
     try {
       const res = await analyzeDrawing(file, age || null, context, mode);
       setResult(res);
-      setHistory((h) => [
-        {
-          id: Date.now(),
-          preview: previewUrl!,
-          result: res,
-          age,
-          date: new Date().toLocaleDateString("ru-RU"),
-        },
-        ...h.slice(0, 9),
-      ]);
       setTab(1);
     } catch (e) {
       setError((e as Error).message);
@@ -60,9 +49,12 @@ export default function App() {
     }
   };
 
-  const handleHistorySelect = (entry: HistoryEntry) => {
-    setResult(entry.result);
-    setAge(entry.age);
+  const handleHistorySelect = (
+    historyResult: AnalysisResult,
+    historyAge: string,
+  ) => {
+    setResult(historyResult);
+    setAge(historyAge);
     setTab(1);
   };
 
@@ -88,9 +80,7 @@ export default function App() {
         {tab === 1 && (
           <ReportPage result={result} age={age} onBack={() => setTab(0)} />
         )}
-        {tab === 2 && (
-          <HistoryPage history={history} onSelect={handleHistorySelect} />
-        )}
+        {tab === 2 && <HistoryPage onSelect={handleHistorySelect} />}
         {tab === 3 && <AboutPage />}
       </div>
     </div>

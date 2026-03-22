@@ -45,12 +45,38 @@ export default function UploadZone({ previewUrl, onFile, onClear }: Props) {
           />
         ) : (
           <>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🖼️</div>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                background: "#f0ecff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 12,
+              }}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#6c5ce7"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </div>
             <p style={{ color: "#636e72", fontSize: 15 }}>
               Перетащите рисунок сюда
             </p>
             <p style={{ color: "#b2bec3", fontSize: 13, marginTop: 4 }}>
-              или нажмите для выбора · PNG / JPG / WEBP
+              или нажмите для выбора — PNG / JPG / WEBP
             </p>
           </>
         )}
@@ -81,7 +107,7 @@ export default function UploadZone({ previewUrl, onFile, onClear }: Props) {
           }}
           onClick={onClear}
         >
-          ✕ Удалить
+          Удалить
         </button>
       )}
     </div>

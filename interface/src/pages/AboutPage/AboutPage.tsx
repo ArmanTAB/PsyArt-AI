@@ -25,23 +25,22 @@ export default function AboutPage() {
         {(
           [
             ["Бэкенд", "Python 3.11 + FastAPI"],
-            ["Компьютерное зрение", "OpenCV 4.x"],
+            ["Компьютерное зрение", "OpenCV 4.x (8 модулей)"],
             ["Кластеризация", "scikit-learn KMeans"],
             ["Обработка изображений", "Pillow (PIL)"],
+            ["LLM Vision", "Groq API (LLaMA-4 Scout)"],
+            ["База данных", "PostgreSQL + SQLAlchemy"],
             ["Фронтенд", "React 18 + Vite + TypeScript"],
-            ["Внешние AI-сервисы", "— не используются —"],
           ] as [string, string][]
         ).map(([k, v]) => (
           <div key={k} className="stat-row">
             <span style={{ color: "#636e72", fontSize: 14 }}>{k}</span>
             <span
               style={{
-                fontFamily: v.includes("—")
-                  ? "inherit"
-                  : "JetBrains Mono, monospace",
+                fontFamily: "JetBrains Mono, monospace",
                 fontSize: 13,
                 fontWeight: 600,
-                color: v.includes("—") ? "#00b894" : "#2d3436",
+                color: "#2d3436",
               }}
             >
               {v}
@@ -72,27 +71,27 @@ export default function AboutPage() {
           {
             step: "1",
             title: "Загрузка и нормализация",
-            desc: "PIL → resize 512×512, конвертация в BGR и HSV",
+            desc: "PIL — resize 512x512, конвертация в BGR и HSV",
           },
           {
             step: "2",
-            title: "Цветовой анализ",
-            desc: "K-Means (k=5) для доминирующих цветов; HSV-маски для 9 цветовых групп",
+            title: "OpenCV-анализ (8 модулей)",
+            desc: "Люшер (цвет — эмоции), Маховер (зоны), линии, сигнатуры радости, объекты, Haar-каскады, LBP-текстура, FFT-спектр",
           },
           {
             step: "3",
-            title: "Анализ композиции",
-            desc: "Моменты OpenCV для центра масс; контуры Canny; подсчёт объектов",
+            title: "LLM Vision (Groq)",
+            desc: "Chain-of-Thought промпт — визуальное описание — психологическая интерпретация — структурированный JSON",
           },
           {
             step: "4",
-            title: "Экспертные правила (Люшер)",
-            desc: "Таблицы цвет → эмоция с весами; модификаторы яркости и насыщенности",
+            title: "Гибридная агрегация",
+            desc: "LLM 65% (семантика, символика) + OpenCV 35% (точные метрики цвета, линий, зон)",
           },
           {
             step: "5",
-            title: "Синтез и отчёт",
-            desc: "Нормализация баллов 0–100; генерация текстового портрета; оценка рисков",
+            title: "Возрастная калибровка и отчёт",
+            desc: "Коррекция по возрастным нормам (3-5, 6-8, 9-12, 13-18 лет); контекст-адаптация; генерация отчёта",
           },
         ].map(({ step, title, desc }) => (
           <div
@@ -133,6 +132,51 @@ export default function AboutPage() {
 
       <div
         className="card"
+        style={{
+          marginBottom: 16,
+          background: "#fff8f0",
+          borderColor: "#fcd89a",
+        }}
+      >
+        <h3
+          style={{
+            fontFamily: "DM Serif Display, serif",
+            fontSize: 18,
+            marginBottom: 12,
+            color: "#e67e22",
+          }}
+        >
+          Психологическая база
+        </h3>
+        {[
+          {
+            method: "Тест Люшера",
+            desc: "Цвет — эмоции (10 цветовых групп с весовыми коэффициентами)",
+          },
+          {
+            method: "Методика Маховер",
+            desc: "Зональный анализ листа (верх/низ/лево/право/центр)",
+          },
+          {
+            method: "Арт-терапия Копытина",
+            desc: "Общие принципы интерпретации детского рисунка",
+          },
+        ].map(({ method, desc }) => (
+          <div key={method} style={{ marginBottom: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "#2d3436" }}>
+              {method}
+            </span>
+            <span style={{ fontSize: 13, color: "#636e72" }}> — {desc}</span>
+          </div>
+        ))}
+        <div style={{ marginTop: 12, fontSize: 13, color: "#636e72" }}>
+          5 эмоций: радость, грусть, тревога, агрессия, спокойствие. 3 итоговых
+          состояния: норма / требует внимания / требует консультации.
+        </div>
+      </div>
+
+      <div
+        className="card"
         style={{ background: "#f0fff4", borderColor: "#c3e6cb" }}
       >
         <h3
@@ -143,7 +187,7 @@ export default function AboutPage() {
             color: "#2e7d32",
           }}
         >
-          🚀 Запуск
+          Запуск
         </h3>
         <pre
           style={{
@@ -156,7 +200,17 @@ export default function AboutPage() {
             borderRadius: 10,
             overflow: "auto",
           }}
-        ></pre>
+        >{`# Бэкенд
+cd core
+py -3.11 -m pip install -r requirements.txt
+py -3.11 -m uvicorn server:app --reload --port 8000
+
+# Фронтенд
+cd interface
+npm install
+npm run dev
+
+# Открыть: http://localhost:5173`}</pre>
       </div>
     </div>
   );

@@ -10,12 +10,10 @@ interface Props {
 }
 
 const MODE_BADGE: Record<string, { bg: string; label: string }> = {
-  claude: { bg: "#6c5ce7", label: "🧠 Claude" },
-  claude_hybrid: { bg: "#a29bfe", label: "🧠+🔬 Claude+OpenCV" },
-  groq: { bg: "#00b894", label: "🧠 Groq" },
-  hybrid: { bg: "#fd79a8", label: "🔀 Гибрид" },
-  opencv: { bg: "#0984e3", label: "🔬 OpenCV" },
-  opencv_fallback: { bg: "#e17055", label: "⚠ OpenCV (fallback)" },
+  groq: { bg: "#00b894", label: "Groq" },
+  hybrid: { bg: "#6c5ce7", label: "Гибрид" },
+  opencv: { bg: "#0984e3", label: "OpenCV" },
+  opencv_fallback: { bg: "#e17055", label: "OpenCV (fallback)" },
 };
 
 export default function ReportPage({ result, age, onBack }: Props) {
@@ -25,14 +23,41 @@ export default function ReportPage({ result, age, onBack }: Props) {
         className="fade-in"
         style={{ textAlign: "center", padding: "80px 40px", color: "#b2bec3" }}
       >
-        <div style={{ fontSize: 64, marginBottom: 16 }}>📊</div>
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 16,
+            background: "#f0ecff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px",
+          }}
+        >
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#6c5ce7"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+        </div>
         <p style={{ fontSize: 18 }}>Загрузите рисунок и запустите анализ</p>
         <button
           className="btn-primary"
           style={{ marginTop: 20, width: "auto", padding: "12px 28px" }}
           onClick={onBack}
         >
-          ← К анализу
+          К анализу
         </button>
       </div>
     );
@@ -67,8 +92,15 @@ export default function ReportPage({ result, age, onBack }: Props) {
               marginBottom: 4,
             }}
           >
-            <div style={{ color: "#a29bfe", fontSize: 12, letterSpacing: 1 }}>
-              ПСИХОЛОГИЧЕСКИЙ ОТЧЁТ
+            <div
+              style={{
+                color: "#a29bfe",
+                fontSize: 12,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              Психологический отчёт
             </div>
             {modeBadge && (
               <span
@@ -105,20 +137,20 @@ export default function ReportPage({ result, age, onBack }: Props) {
 
           {result.ageNormLabel && (
             <p style={{ color: "#a29bfe", fontSize: 12, marginTop: 4 }}>
-              📐 {result.ageNormLabel}
+              {result.ageNormLabel}
             </p>
           )}
 
           {result.fallbackReason && (
             <p style={{ color: "#fdcb6e", fontSize: 12, marginTop: 4 }}>
-              ⚠ {result.fallbackReason}
+              {result.fallbackReason}
             </p>
           )}
 
           {result.contextAnalysis &&
             result.contextAnalysis.stress_level > 0 && (
               <p style={{ color: "#e17055", fontSize: 12, marginTop: 4 }}>
-                🔴 Стресс-контекст учтён (
+                Стресс-контекст учтён (
                 {result.contextAnalysis.stress_keywords.join(", ")})
               </p>
             )}
@@ -138,6 +170,11 @@ export default function ReportPage({ result, age, onBack }: Props) {
               {result.confidence}%
             </span>
           </div>
+          {result.dbId && (
+            <div style={{ color: "#636e72", fontSize: 11, marginTop: 4 }}>
+              ID: {result.dbId}
+            </div>
+          )}
         </div>
       </div>
 
@@ -153,7 +190,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
                 color: "#2d3436",
               }}
             >
-              🎨 Содержание рисунка
+              Содержание рисунка
             </h3>
             <div
               style={{
@@ -201,7 +238,11 @@ export default function ReportPage({ result, age, onBack }: Props) {
           Эмоциональный профиль
         </h3>
         {result.emotions.map((e) => (
-          <EmotionBar key={e.name} {...e} />
+          <EmotionBar
+            key={e.name}
+            {...e}
+            chain={result.evidenceChains?.[e.name]}
+          />
         ))}
       </div>
 
@@ -234,7 +275,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
                 color: "#2d3436",
               }}
             >
-              ⚠️ Факторы риска
+              Факторы риска
             </h3>
             {result.riskFactors.map((r) => (
               <span key={r} className="risk-tag">
@@ -252,7 +293,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
               color: "#2d3436",
             }}
           >
-            💡 Рекомендации
+            Рекомендации
           </h3>
           {result.recommendations.map((r, i) => (
             <div key={i} className="recommendation-item">
@@ -292,7 +333,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
               color: "#2d3436",
             }}
           >
-            🎨 Цветовой анализ (Люшер)
+            Цветовой анализ (Люшер)
           </h3>
           <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
             {result.colorAnalysis.dominant.map((hex) => (
@@ -335,7 +376,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
               color: "#2d3436",
             }}
           >
-            📐 Зональный анализ (Маховер)
+            Зональный анализ (Маховер)
           </h3>
           <p style={{ fontSize: 14, color: "#636e72", marginBottom: 12 }}>
             {result.zoneAnalysis.balanceInterpretation}
@@ -378,7 +419,7 @@ export default function ReportPage({ result, age, onBack }: Props) {
         style={{ background: "#636e72", marginTop: 8 }}
         onClick={onBack}
       >
-        ← Новый анализ
+        Новый анализ
       </button>
     </div>
   );

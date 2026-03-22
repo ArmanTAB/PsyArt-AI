@@ -25,27 +25,19 @@ type Tab = "opencv" | "groq";
 
 const TAB_META: Record<
   Tab,
-  {
-    label: string;
-    icon: string;
-    color: string;
-    desc: string;
-    speed: string;
-  }
+  { label: string; color: string; desc: string; speed: string }
 > = {
   opencv: {
     label: "OpenCV",
-    icon: "🔬",
     color: "#0984e3",
     desc: "Анализ пикселей: цвет, линии, зоны, нажим, текстура. Работает без интернета.",
     speed: "~1 сек",
   },
   groq: {
-    label: "Groq",
-    icon: "⚡",
+    label: "Groq LLM",
     color: "#00b894",
-    desc: "LLaMA-4 Vision — понимает содержание и сюжет рисунка. Бесплатно.",
-    speed: "2–5 сек",
+    desc: "LLaMA-4 Vision — понимает содержание и сюжет рисунка. Бесплатный API.",
+    speed: "2-5 сек",
   },
 };
 
@@ -108,10 +100,8 @@ export default function AnalysisPage({
 
   const loadingMsg = () => {
     if (tab === "groq")
-      return hybrid
-        ? "Groq + OpenCV анализируют (3–8 сек)..."
-        : "Groq анализирует (2–5 сек)...";
-    return "OpenCV анализирует (~1 сек)...";
+      return hybrid ? "Groq + OpenCV анализируют..." : "Groq анализирует...";
+    return "OpenCV анализирует...";
   };
 
   return (
@@ -143,7 +133,6 @@ export default function AnalysisPage({
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Вкладки методов */}
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          {/* Шапка вкладок */}
           <div style={{ display: "flex", borderBottom: "1px solid #f0f0f0" }}>
             {(Object.keys(TAB_META) as Tab[]).map((t) => {
               const meta = TAB_META[t];
@@ -171,7 +160,6 @@ export default function AnalysisPage({
                     gap: 4,
                   }}
                 >
-                  <span style={{ fontSize: 20 }}>{meta.icon}</span>
                   <span
                     style={{
                       fontSize: 12,
@@ -191,14 +179,13 @@ export default function AnalysisPage({
                           : "#e17055",
                     }}
                   >
-                    {checking ? "..." : avail ? "✓ готов" : "✗ нет ключа"}
+                    {checking ? "..." : avail ? "Готов" : "Нет ключа"}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          {/* Тело вкладки */}
           <div style={{ padding: "16px 20px" }}>
             <p
               style={{
@@ -211,7 +198,6 @@ export default function AnalysisPage({
               {TAB_META[tab].desc}
             </p>
 
-            {/* Гибридный режим — только для groq */}
             {tab === "groq" && (
               <label
                 style={{
@@ -236,7 +222,7 @@ export default function AnalysisPage({
                   <div
                     style={{ fontSize: 13, fontWeight: 600, color: "#2d3436" }}
                   >
-                    🔀 Гибридный режим (+OpenCV)
+                    Гибридный режим (+OpenCV)
                   </div>
                   <div style={{ fontSize: 11, color: "#636e72" }}>
                     Groq 65% + OpenCV 35% — семантика + точные метрики
@@ -245,7 +231,6 @@ export default function AnalysisPage({
               </label>
             )}
 
-            {/* Характеристики */}
             <div
               style={{
                 display: "grid",
@@ -255,10 +240,7 @@ export default function AnalysisPage({
             >
               {[
                 { label: "Скорость", value: TAB_META[tab].speed },
-                {
-                  label: "Уверен.",
-                  value: tab === "groq" ? "88%" : "72%",
-                },
+                { label: "Уверен.", value: tab === "groq" ? "88%" : "72%" },
                 {
                   label: "Метод",
                   value: tab === "opencv" ? "Пиксели" : "LLaMA-4",
@@ -287,7 +269,6 @@ export default function AnalysisPage({
               ))}
             </div>
 
-            {/* Статус ошибки API */}
             {tab === "groq" &&
               !groqStatus.checking &&
               !groqStatus.available && (
@@ -302,7 +283,7 @@ export default function AnalysisPage({
                     color: "#e67e22",
                   }}
                 >
-                  ⚠ Groq недоступен — добавь{" "}
+                  Groq недоступен — добавьте{" "}
                   <code
                     style={{
                       background: "#fff",
@@ -386,10 +367,10 @@ export default function AnalysisPage({
               fontSize: 14,
             }}
           >
-            ⚠️ {error}
+            {error}
             {error.includes("Failed to fetch") && (
               <div style={{ marginTop: 8, fontSize: 13, color: "#636e72" }}>
-                Запусти сервер:{" "}
+                Запустите сервер:{" "}
                 <code>py -3.11 -m uvicorn server:app --reload</code>
               </div>
             )}
@@ -412,10 +393,10 @@ export default function AnalysisPage({
         >
           {loading ? (
             <>
-              <span className="spin">⟳</span> {loadingMsg()}
+              <span className="spin">&#8635;</span> {loadingMsg()}
             </>
           ) : (
-            `▶ Запустить анализ · ${TAB_META[tab].icon} ${TAB_META[tab].label}${tab === "groq" && hybrid ? " + OpenCV" : ""}`
+            `Запустить анализ — ${TAB_META[tab].label}${tab === "groq" && hybrid ? " + OpenCV" : ""}`
           )}
         </button>
       </div>

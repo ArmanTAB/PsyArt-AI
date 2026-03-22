@@ -1,7 +1,7 @@
 """
-АртМинд — Психоэмоциональный анализ детских рисунков v5.0
+АртМинд — Психоэмоциональный анализ детских рисунков v6.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Модуль 1 : Тест Люшера          — цвет → эмоции (расширен)
+Модуль 1 : Тест Люшера          — цвет → эмоции
 Модуль 2 : Методика Маховер     — зональный анализ листа
 Модуль 3 : Анализ линий         — нажим, характер, хаотичность
 Модуль 4 : Сигнатуры радости    — детектор позитивных паттернов
@@ -10,14 +10,7 @@
 Модуль 7 : LBP текстура         — анализ текстуры штриха
 Модуль 8 : FFT частотный анализ — хаотичность через спектр
 
-Новое в v5.0:
-  + Модуль 6: Haar-каскады (лица, улыбки) встроены в OpenCV
-  + Модуль 7: LBP-текстура штриха
-  + Модуль 8: FFT-анализ пространственных частот
-  + Расширенная психология цветов (чёрный, серый, коричневый)
-  + Детектор пустого рисунка
-  + Нормализация зон по заполненности
-  + Возрастная калибровка + контекст-адаптация
+v6.0: Все константы вынесены в config.py
 """
 
 import cv2
@@ -27,6 +20,16 @@ from sklearn.cluster import KMeans
 import io
 import math
 from typing import Optional
+
+from config import (
+    ALL_EMOTIONS, COLOR_RANGES, COLOR_EMOTION_MAP,
+    WARM_JOY_COLORS, COOL_SAD_COLORS, DARK_RISK_COLORS, NATURE_JOY_COLORS,
+    ZONE_INTERPRETATIONS, ZONE_EMOTION_MAP, COMPOSITION_MAP,
+    LINE_PRESSURE_MAP, LINE_CHARACTER_MAP, JOY_SIGNATURES,
+    AGE_NORMS, AGE_STATE_THRESHOLDS,
+    CONTEXT_STRESS_KEYWORDS, CONTEXT_POSITIVE_KEYWORDS,
+    MODULE_WEIGHTS,
+)
 
 
 # ── Утилита: numpy → JSON-safe ─────────────────────────────────────────────
@@ -41,160 +44,6 @@ def _to_json_safe(obj):
     if isinstance(obj, np.bool_):    return bool(obj)
     if isinstance(obj, np.ndarray):  return obj.tolist()
     return obj
-
-
-COLOR_RANGES = {
-    "красный":       [(0, 10), (170, 180)],
-    "оранжевый":     [(10, 20)],
-    "жёлтый":        [(20, 35)],
-    "жёлто-зелёный": [(35, 50)],
-    "зелёный":       [(50, 80)],
-    "голубой":       [(80, 100)],
-    "синий":         [(100, 130)],
-    "фиолетовый":    [(130, 155)],
-    "розовый":       [(155, 170)],
-    "коричневый":    [(10, 25)],   # hue 10-25 + низкая насыщенность — детектируется отдельно
-}
-
-COLOR_EMOTION_MAP = {
-    "красный":       {"агрессия": 1.0, "радость": 0.4, "тревога": 0.2},
-    "оранжевый":     {"радость": 1.0, "агрессия": 0.2},
-    "жёлтый":        {"радость": 1.0, "спокойствие": 0.2},
-    "жёлто-зелёный": {"тревога": 0.7, "спокойствие": 0.3},
-    "зелёный":       {"спокойствие": 0.9, "радость": 0.4},
-    "голубой":       {"спокойствие": 0.8, "радость": 0.2, "грусть": 0.1},
-    "синий":         {"грусть": 0.6, "спокойствие": 0.4, "тревога": 0.1},
-    "фиолетовый":    {"тревога": 0.9, "грусть": 0.5},
-    "розовый":       {"радость": 1.0, "спокойствие": 0.4},
-    "коричневый":    {"грусть": 0.5, "тревога": 0.3, "спокойствие": 0.2},
-    "чёрный":        {"агрессия": 0.6, "грусть": 0.8, "тревога": 0.7},
-    "серый":         {"грусть": 0.7, "тревога": 0.4, "спокойствие": 0.1},
-}
-
-WARM_JOY_COLORS   = {"красный", "оранжевый", "жёлтый", "розовый"}
-COOL_SAD_COLORS   = {"синий", "фиолетовый", "серый"}
-DARK_RISK_COLORS  = {"чёрный", "серый", "коричневый"}
-NATURE_JOY_COLORS = {"жёлтый", "оранжевый", "зелёный", "голубой"}
-
-ZONE_INTERPRETATIONS = {
-    "верх":  {"высокая": "Верхняя зона активна — фантазии, устремлённость, оптимизм",
-               "средняя": "Умеренная активность верхней зоны — нормативный уровень фантазирования",
-               "низкая":  "Верхняя зона пуста — снижение мотивации или депрессивность"},
-    "центр": {"высокая": "Центральная зона насыщена — сильное эго, потребность во внимании",
-               "средняя": "Центральная зона умеренно заполнена — сбалансированное самовосприятие",
-               "низкая":  "Центральная зона пуста — неуверенность в себе, низкая самооценка"},
-    "низ":   {"высокая": "Нижняя зона активна — приземлённость, инстинктивность, тревога",
-               "средняя": "Нижняя зона умеренно заполнена — нормативный контакт с реальностью",
-               "низкая":  "Нижняя зона пуста — оторванность от реальности, мечтательность"},
-    "лево":  {"высокая": "Левая сторона активна — фиксация на прошлом, интроверсия",
-               "средняя": "Умеренная активность левой стороны — норма",
-               "низкая":  "Левая сторона пуста — отрыв от прошлого опыта"},
-    "право": {"высокая": "Правая сторона активна — устремлённость в будущее, экстраверсия",
-               "средняя": "Умеренная активность правой стороны — норма",
-               "низкая":  "Правая сторона пуста — страх будущего, замкнутость"},
-}
-
-ZONE_EMOTION_MAP = {
-    "верх":  {"высокая": {"радость": 20},        "низкая": {"грусть": 20}},
-    "центр": {"высокая": {"агрессия": 10},        "низкая": {"грусть": 15, "тревога": 15}},
-    "низ":   {"высокая": {"тревога": 25},          "низкая": {"спокойствие": 10}},
-    "лево":  {"высокая": {"грусть": 15},           "низкая": {}},
-    "право": {"высокая": {"радость": 15},          "низкая": {"тревога": 15}},
-}
-
-COMPOSITION_MAP = {
-    "заполненность": {
-        "высокая": "Высокое заполнение листа — энергия, активность.",
-        "средняя": "Среднее заполнение листа — норма.",
-        "низкая":  "Низкое заполнение листа — замкнутость или апатия.",
-    },
-    "расположение": {
-        "верх":  "Смещение вверх — оптимизм, фантазии",
-        "низ":   "Смещение вниз — тревожность, приземлённость",
-        "лево":  "Смещение влево — ориентация на прошлое, интроверсия",
-        "право": "Смещение вправо — устремлённость в будущее, экстраверсия",
-        "центр": "Центральное расположение — потребность во внимании",
-    },
-    "сложность": {
-        "высокая": "Богатая детализация — высокий интеллект, развитое воображение.",
-        "средняя": "Умеренная детализация — нормативное развитие.",
-        "низкая":  "Минимальная детализация — возможна тревога или усталость.",
-    },
-}
-
-LINE_PRESSURE_MAP = {
-    "сильный": {"агрессия": 25, "тревога": 15},
-    "средний": {"спокойствие": 10},
-    "слабый":  {"грусть": 20, "тревога": 10},
-}
-
-LINE_CHARACTER_MAP = {
-    "прерывистые": {"тревога": 25, "грусть": 10},
-    "плавные":     {"спокойствие": 15, "радость": 5},
-    "угловатые":   {"агрессия": 20, "тревога": 10},
-}
-
-JOY_SIGNATURES = {
-    "vivid_rich": {
-        "condition": lambda f: f["n_vivid_colors"] >= 3 and f["vivid_coverage"] > 0.15 and f["brightness"] > 0.6,
-        "bonus": {"радость": 35}, "aggression_cap": 50, "label": "Яркая насыщенная палитра",
-    },
-    "warm_dominant": {
-        "condition": lambda f: f["warm_ratio"] > 0.35,
-        "bonus": {"радость": 30}, "aggression_cap": 55, "label": "Тёплые тона доминируют",
-    },
-    "multicolor": {
-        "condition": lambda f: f["n_vivid_colors"] >= 5,
-        "bonus": {"радость": 25}, "aggression_cap": 45, "label": "Многоцветность",
-    },
-    "nature_palette": {
-        "condition": lambda f: sum(f["color_ratios"].get(c, 0) for c in ["жёлтый", "зелёный", "голубой", "оранжевый"]) > 0.4,
-        "bonus": {"радость": 20, "спокойствие": 15}, "aggression_cap": 60, "label": "Природная палитра",
-    },
-    "bright_light": {
-        "condition": lambda f: f["brightness"] > 0.78 and f["vivid_coverage"] > 0.1,
-        "bonus": {"радость": 20, "спокойствие": 10}, "aggression_cap": 60, "label": "Яркий светлый фон",
-    },
-}
-
-AGE_NORMS = {
-    (3, 5):  {"label": "Дошкольники (3–5 лет)", "тревога": -15, "агрессия": -10, "спокойствие": 5, "fill_low_ok": True, "chaos_ok": True},
-    (6, 8):  {"label": "Младший школьный возраст (6–8 лет)", "тревога": -5, "агрессия": -5},
-    (9, 12): {"label": "Средний школьный возраст (9–12 лет)"},
-    (13, 18):{"label": "Подростки (13–18 лет)", "агрессия": -12, "грусть": -10, "тревога": -8, "dark_ok": True},
-}
-
-AGE_STATE_THRESHOLDS = {
-    (3, 5):   {"консультация": 4, "внимание": 2},
-    (6, 8):   {"консультация": 3, "внимание": 1},
-    (9, 12):  {"консультация": 3, "внимание": 1},
-    (13, 18): {"консультация": 4, "внимание": 2},
-}
-
-CONTEXT_STRESS_KEYWORDS = [
-    "смерть", "умер", "похороны", "развод", "расстались", "разлука",
-    "переезд", "новая школа", "буллинг", "бьют", "обижают", "конфликт",
-    "болезнь", "больница", "операция", "страх", "кошмары", "не спит",
-    "плачет", "замкнулся", "агрессивен", "дерётся", "тревожится",
-    "потеря", "горе", "стресс", "травма", "насилие",
-]
-CONTEXT_POSITIVE_KEYWORDS = [
-    "счастлив", "радуется", "активный", "весёлый", "дружит", "успевает",
-    "хорошо", "отлично", "спокойный", "позитивный",
-]
-
-MODULE_WEIGHTS = {
-    "module1_luscher":  0.25,
-    "module2_makeover": 0.20,
-    "module3_lines":    0.15,
-    "module4_joy":      0.12,
-    "module5_objects":  0.13,
-    "module6_haar":     0.08,
-    "module7_lbp":      0.04,
-    "module8_fft":      0.03,
-}
-
-ALL_EMOTIONS = ["радость", "грусть", "тревога", "агрессия", "спокойствие"]
 
 
 class DrawingAnalyzer:
@@ -225,6 +74,19 @@ class DrawingAnalyzer:
         s7 = self._scores_lbp(lbp_data)
         s8 = self._scores_fft(fft_data)
 
+        # ── Explainability: собираем вклад каждого модуля ──
+        module_scores = {
+            "Цвет (Люшер)":       s1,
+            "Зоны (Маховер)":     s2,
+            "Линии":              s3,
+            "Сигнатуры радости":  s4,
+            "Объекты":            s5,
+            "Лица (Haar)":        s6,
+            "Текстура (LBP)":     s7,
+            "Спектр (FFT)":       s8,
+        }
+        evidence_chains = self._build_evidence_chains(module_scores)
+
         raw    = self._aggregate(s1, s2, s3, s4, s5, s6, s7, s8)
         vetoed = self._apply_veto(raw, color_data, comp_data, zone_data, line_data, joy_data)
         aged   = self._apply_age_correction(vetoed, child_age, color_data, line_data, is_empty)
@@ -246,6 +108,7 @@ class DrawingAnalyzer:
             "lineAnalysis":          line_data,
             "contentAnalysis":       content,
             "emotions":              emotions,
+            "evidenceChains":        evidence_chains,
             "psychologicalPortrait": portrait,
             "riskFactors":           risks,
             "recommendations":       recs,
@@ -405,16 +268,11 @@ class DrawingAnalyzer:
     # ── МОДУЛЬ 2 МАХОВЕР ────────────────────────────────
 
     def _smart_binary(self, gray: np.ndarray) -> np.ndarray:
-        """Адаптивная бинаризация: Otsu + морфология. Работает для фото и сканов."""
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        # Для очень светлых рисунков (карандаш) Otsu может дать порог ~200-220
-        # Дополнительно: адаптивный порог для локальных деталей
         adaptive = cv2.adaptiveThreshold(blur, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 8)
-        # Объединяем: берём объединение обеих масок
         combined = cv2.bitwise_or(otsu, adaptive)
-        # Убираем шум
         kernel = np.ones((2, 2), np.uint8)
         combined = cv2.morphologyEx(combined, cv2.MORPH_OPEN, kernel)
         return combined
@@ -502,14 +360,11 @@ class DrawingAnalyzer:
     # ── МОДУЛЬ 3 ЛИНИИ ──────────────────────────────────
 
     def _analyze_lines(self, gray: np.ndarray) -> dict:
-        # ── Нажим: чем ТЕМНЕЕ пиксели штриха — тем СИЛЬНЕЕ нажим ──
-        # Используем адаптивную маску: пиксели темнее среднего фона
-        bg_level  = float(np.percentile(gray, 90))   # яркость фона (90й перцентиль)
-        threshold = bg_level * 0.75                   # штрих темнее фона на 25%
+        bg_level  = float(np.percentile(gray, 90))
+        threshold = bg_level * 0.75
         line_mask = gray < threshold
         if line_mask.sum() > 200:
             lbri     = float(gray[line_mask].mean())
-            # Нормируем: 0 = абсолютно чёрный (сильный), bg_level = фон (слабый)
             darkness = 1.0 - (lbri / max(bg_level, 1))
             pressure = "сильный" if darkness > 0.65 else ("средний" if darkness > 0.35 else "слабый")
             pv       = round(darkness, 2)
@@ -541,19 +396,16 @@ class DrawingAnalyzer:
         else:
             frag = 0; ar = 0; char = "плавные"
 
-        # ── Хаотичность: разброс направлений градиентов (не количество контуров!) ──
-        # Метод: std углов градиента Собеля. Хаотичный штрих = много разных направлений.
         gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
         gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
         mag_s, ang = cv2.cartToPolar(gx, gy, angleInDegrees=True)
-        strong = mag_s > (mag_s.max() * 0.15)      # только значимые края
+        strong = mag_s > (mag_s.max() * 0.15)
         if strong.sum() > 100:
             angles    = ang[strong]
-            # Нормализуем в [0,1] и считаем цикличное std
             ang_rad   = angles * np.pi / 180.0
             sin_std   = float(np.std(np.sin(ang_rad)))
             cos_std   = float(np.std(np.cos(ang_rad)))
-            chaos_v   = round((sin_std + cos_std) / 2.0, 3)  # 0..~0.7
+            chaos_v   = round((sin_std + cos_std) / 2.0, 3)
             chaos     = "высокая" if chaos_v > 0.42 else ("средняя" if chaos_v > 0.28 else "низкая")
         else:
             chaos_v = 0.3; chaos = "средняя"
@@ -722,15 +574,12 @@ class DrawingAnalyzer:
 
     def _analyze_lbp(self, gray: np.ndarray) -> dict:
         try:
-            # ── LBP только на ШТРИХАХ (не на белом фоне!) ──
             bg_level  = float(np.percentile(gray, 90))
             threshold = bg_level * 0.80
-            line_mask = gray < threshold          # только пиксели штриха
+            line_mask = gray < threshold
             if line_mask.sum() < 300:
                 return {"energy": 0.5, "entropy": 0.5, "textureType": "неизвестно",
                         "interpretation": "Недостаточно данных для LBP"}
-
-            # Вычисляем LBP на всём изображении
             h, w = gray.shape
             center = gray[1:-1, 1:-1].astype(np.int16)
             neighbors = [
@@ -741,20 +590,16 @@ class DrawingAnalyzer:
             lbp_map = np.zeros((h-2, w-2), dtype=np.uint8)
             for i, nb in enumerate(neighbors):
                 lbp_map += ((nb.astype(np.int16) >= center) * (1 << i)).astype(np.uint8)
-
-            # Гистограмма ТОЛЬКО по пикселям штриха (обрезаем маску под размер lbp_map)
             stroke_mask = line_mask[1:-1, 1:-1]
             if stroke_mask.sum() < 100:
                 stroke_pixels = lbp_map.flatten()
             else:
                 stroke_pixels = lbp_map[stroke_mask]
-
             hist, _ = np.histogram(stroke_pixels, bins=256, range=(0, 256))
             hist     = hist.astype(float) / (hist.sum() + 1e-6)
             energy   = float(np.sum(hist**2))
             entropy  = float(-np.sum(hist[hist > 0] * np.log2(hist[hist > 0] + 1e-6)))
             norm_e   = entropy / math.log2(256)
-
             if norm_e > 0.85:
                 tt = "хаотичная"; interp = "Хаотичная текстура штриха (LBP) — импульсивность, тревожность."
             elif norm_e > 0.70:
@@ -809,6 +654,61 @@ class DrawingAnalyzer:
         if ft == "высокочастотный":  sc["тревога"] += 15; sc["агрессия"] += 5
         elif ft == "низкочастотный": sc["спокойствие"] += 15; sc["радость"] += 5
         return sc
+
+    # ── EXPLAINABILITY ─────────────────────────────────
+
+    def _build_evidence_chains(self, module_scores: dict) -> dict:
+        """
+        Строит цепочку доказательств для каждой эмоции.
+        Показывает вклад каждого модуля в итоговую оценку.
+
+        Возвращает:
+        {
+          "радость": {
+            "total": 45.2,
+            "modules": [
+              {"name": "Цвет (Люшер)", "raw": 80, "weight": 0.25, "weighted": 20.0},
+              {"name": "Объекты",      "raw": 30, "weight": 0.13, "weighted": 3.9},
+              ...
+            ]
+          },
+          ...
+        }
+        """
+        w = MODULE_WEIGHTS
+        weight_map = {
+            "Цвет (Люшер)":      w["module1_luscher"],
+            "Зоны (Маховер)":    w["module2_makeover"],
+            "Линии":             w["module3_lines"],
+            "Сигнатуры радости": w["module4_joy"],
+            "Объекты":           w["module5_objects"],
+            "Лица (Haar)":       w["module6_haar"],
+            "Текстура (LBP)":    w["module7_lbp"],
+            "Спектр (FFT)":      w["module8_fft"],
+        }
+
+        chains = {}
+        for emotion in ALL_EMOTIONS:
+            modules = []
+            total = 0.0
+            for mod_name, scores in module_scores.items():
+                raw_score = scores.get(emotion, 0)
+                mod_weight = weight_map.get(mod_name, 0)
+                weighted = round(raw_score * mod_weight, 1)
+                total += weighted
+                if raw_score > 0:
+                    modules.append({
+                        "name":     mod_name,
+                        "raw":      round(raw_score, 1),
+                        "weight":   mod_weight,
+                        "weighted": weighted,
+                    })
+            modules.sort(key=lambda x: -x["weighted"])
+            chains[emotion] = {
+                "total":   round(max(0, min(100, total)), 1),
+                "modules": modules,
+            }
+        return chains
 
     # ── АГРЕГАЦИЯ ────────────────────────────────────────
 

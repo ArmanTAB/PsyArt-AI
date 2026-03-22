@@ -5,4 +5,8 @@ opencv-python==4.10.0.84
 Pillow==12.1.1
 scikit-learn==1.7.2
 numpy>=2.0.0
-httpx==0.27.2
+python-dotenv==1.1.0
+groq==0.25.0
+sqlalchemy==2.0.41
+psycopg2-binary==2.9.10
+loguru==0.7.3

@@ -1,4 +1,4 @@
-// АртМинд — типы данных v6.0
+// АртМинд — типы данных v7.0
 
 export type EmotionName =
   | "радость"
@@ -70,13 +70,19 @@ export type OverallState =
   | "требует_внимания"
   | "требует_консультации";
 
-export type AnalysisMode =
-  | "claude"
-  | "claude_hybrid"
-  | "groq"
-  | "hybrid"
-  | "opencv"
-  | "opencv_fallback";
+export type AnalysisMode = "groq" | "hybrid" | "opencv" | "opencv_fallback";
+
+export interface EvidenceModule {
+  name: string;
+  raw: number;
+  weight: number;
+  weighted: number;
+}
+
+export interface EvidenceChain {
+  total: number;
+  modules: EvidenceModule[];
+}
 
 export interface AnalysisResult {
   colorAnalysis: ColorAnalysis;
@@ -85,6 +91,7 @@ export interface AnalysisResult {
   lineAnalysis?: LineAnalysis;
   contentAnalysis?: ContentAnalysis;
   emotions: Emotion[];
+  evidenceChains?: Record<string, EvidenceChain>;
   psychologicalPortrait: string;
   riskFactors: string[];
   recommendations: string[];
@@ -94,18 +101,11 @@ export interface AnalysisResult {
   fallbackReason?: string;
   moduleWeights?: Record<string, number>;
   ageNormLabel?: string;
+  dbId?: number;
   contextAnalysis?: {
     stress_level: number;
     positive_level: number;
     stress_keywords: string[];
     positive_keywords: string[];
   };
-}
-
-export interface HistoryEntry {
-  id: number;
-  preview: string;
-  result: AnalysisResult;
-  age: string;
-  date: string;
 }
