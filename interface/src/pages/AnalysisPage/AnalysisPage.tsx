@@ -19,19 +19,26 @@ interface ApiStatus {
   model?: string;
   error?: string;
   checking: boolean;
+  test_accuracy?: number;
 }
 
-type Tab = "opencv" | "groq";
+type Tab = "cnn" | "opencv" | "groq";
 
 const TAB_META: Record<
   Tab,
   { label: string; color: string; desc: string; speed: string }
 > = {
+  cnn: {
+    label: "CNN",
+    color: "#e84393",
+    desc: "EfficientNet-B0, дообученный на 1100+ детских рисунках. Работает локально на GPU.",
+    speed: "~50 мс",
+  },
   opencv: {
     label: "OpenCV",
     color: "#0984e3",
     desc: "Анализ пикселей: цвет, линии, зоны, нажим, текстура. Работает без интернета.",
-    speed: "~1 сек",
+    speed: "~200 мс",
   },
   groq: {
     label: "Groq LLM",
@@ -53,10 +60,14 @@ export default function AnalysisPage({
   onContextChange,
   onAnalyze,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("groq");
+  const [tab, setTab] = useState<Tab>("cnn");
   const [hybrid, setHybrid] = useState(true);
 
   const [groqStatus, setGroqStatus] = useState<ApiStatus>({
+    available: false,
+    checking: true,
+  });
+  const [cnnStatus, setCnnStatus] = useState<ApiStatus>({
     available: false,
     checking: true,
   });
@@ -75,6 +86,18 @@ export default function AnalysisPage({
           checking: false,
         });
       }
+      try {
+        const cn = await fetch("http://localhost:8000/cnn/status").then((r) =>
+          r.json(),
+        );
+        setCnnStatus({ ...cn, checking: false });
+      } catch {
+        setCnnStatus({
+          available: false,
+          error: "Сервер недоступен",
+          checking: false,
+        });
+      }
     };
     checkAll();
   }, []);
@@ -82,26 +105,39 @@ export default function AnalysisPage({
   const isAvailable = (t: Tab) => {
     if (t === "opencv") return true;
     if (t === "groq") return groqStatus.available;
+    if (t === "cnn") return cnnStatus.available;
     return false;
   };
 
   const getMode = (): string => {
+    if (tab === "cnn") return "cnn";
     if (tab === "opencv") return "opencv";
     if (tab === "groq") return hybrid ? "hybrid" : "groq";
-    return "opencv";
+    return "cnn";
   };
 
   const activeColor = TAB_META[tab].color;
 
   const statusOf = (t: Tab): ApiStatus => {
     if (t === "groq") return groqStatus;
+    if (t === "cnn") return cnnStatus;
     return { available: true, checking: false };
   };
 
   const loadingMsg = () => {
+    if (tab === "cnn") return "CNN анализирует...";
     if (tab === "groq")
       return hybrid ? "Groq + OpenCV анализируют..." : "Groq анализирует...";
     return "OpenCV анализирует...";
+  };
+
+  const confidenceLabel = () => {
+    if (tab === "cnn")
+      return cnnStatus.test_accuracy
+        ? `${Math.round(cnnStatus.test_accuracy * 100)}%`
+        : "75%";
+    if (tab === "groq") return "64%";
+    return "31%";
   };
 
   return (
@@ -109,7 +145,6 @@ export default function AnalysisPage({
       className="fade-in"
       style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}
     >
-      {/* Left — upload */}
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         <div>
           <h2
@@ -129,9 +164,7 @@ export default function AnalysisPage({
         <UploadZone previewUrl={previewUrl} onFile={onFile} onClear={onClear} />
       </div>
 
-      {/* Right — settings */}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Вкладки методов */}
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ display: "flex", borderBottom: "1px solid #f0f0f0" }}>
             {(Object.keys(TAB_META) as Tab[]).map((t) => {
@@ -179,7 +212,7 @@ export default function AnalysisPage({
                           : "#e17055",
                     }}
                   >
-                    {checking ? "..." : avail ? "Готов" : "Нет ключа"}
+                    {checking ? "..." : avail ? "Готов" : "Недоступен"}
                   </span>
                 </button>
               );
@@ -225,7 +258,7 @@ export default function AnalysisPage({
                     Гибридный режим (+OpenCV)
                   </div>
                   <div style={{ fontSize: 11, color: "#636e72" }}>
-                    Groq 65% + OpenCV 35% — семантика + точные метрики
+                    Groq 65% + OpenCV 35%
                   </div>
                 </div>
               </label>
@@ -240,10 +273,15 @@ export default function AnalysisPage({
             >
               {[
                 { label: "Скорость", value: TAB_META[tab].speed },
-                { label: "Уверен.", value: tab === "groq" ? "88%" : "72%" },
+                { label: "Точность", value: confidenceLabel() },
                 {
                   label: "Метод",
-                  value: tab === "opencv" ? "Пиксели" : "LLaMA-4",
+                  value:
+                    tab === "cnn"
+                      ? "EfficientNet"
+                      : tab === "opencv"
+                        ? "Пиксели"
+                        : "LLaMA-4",
                 },
               ].map(({ label, value }) => (
                 <div
@@ -268,6 +306,31 @@ export default function AnalysisPage({
                 </div>
               ))}
             </div>
+
+            {tab === "cnn" && !cnnStatus.checking && !cnnStatus.available && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "#fff8f0",
+                  border: "1px solid #fcd89a",
+                  fontSize: 12,
+                  color: "#e67e22",
+                }}
+              >
+                CNN модель не найдена. Запустите{" "}
+                <code
+                  style={{
+                    background: "#fff",
+                    padding: "1px 4px",
+                    borderRadius: 3,
+                  }}
+                >
+                  py -3.11 train_cnn.py
+                </code>
+              </div>
+            )}
 
             {tab === "groq" &&
               !groqStatus.checking &&
@@ -303,24 +366,11 @@ export default function AnalysisPage({
                   >
                     core/.env
                   </code>
-                  {groqStatus.error && (
-                    <div
-                      style={{
-                        marginTop: 4,
-                        fontSize: 11,
-                        color: "#636e72",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {groqStatus.error}
-                    </div>
-                  )}
                 </div>
               )}
           </div>
         </div>
 
-        {/* Данные о ребёнке */}
         <div className="card">
           <h3
             style={{
@@ -343,9 +393,7 @@ export default function AnalysisPage({
               onChange={(e) => onAgeChange(e.target.value)}
               min={2}
               max={17}
-              style={{
-                borderColor: !age ? "#fcd89a" : undefined,
-              }}
+              style={{ borderColor: !age ? "#fcd89a" : undefined }}
             />
             {!age && (
               <span
@@ -372,7 +420,6 @@ export default function AnalysisPage({
           </div>
         </div>
 
-        {/* Ошибка */}
         {error && (
           <div
             style={{
@@ -394,7 +441,6 @@ export default function AnalysisPage({
           </div>
         )}
 
-        {/* Кнопка */}
         <button
           className="btn-primary"
           onClick={() => onAnalyze(getMode())}

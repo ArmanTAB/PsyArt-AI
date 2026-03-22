@@ -17,6 +17,7 @@ interface ModeResult {
 }
 
 const MODES: { mode: string; label: string; color: string }[] = [
+  { mode: "cnn", label: "CNN", color: "#e84393" },
   { mode: "opencv", label: "OpenCV", color: "#0984e3" },
   { mode: "groq", label: "Groq LLM", color: "#00b894" },
   { mode: "hybrid", label: "Гибрид", color: "#6c5ce7" },
@@ -72,7 +73,6 @@ export default function ComparePage() {
     setRunning(true);
     abortRef.current = false;
 
-    // Запускаем все 3 режима параллельно
     const promises = MODES.map(async (m, idx) => {
       setResults((prev) => {
         const copy = [...prev];
@@ -147,11 +147,9 @@ export default function ComparePage() {
         Сравнение режимов
       </h2>
       <p style={{ color: "#636e72", fontSize: 15, marginBottom: 20 }}>
-        Один рисунок — три режима анализа. Показывает разницу между OpenCV, Groq
-        и гибридным подходом.
+        Один рисунок — четыре режима анализа. CNN, OpenCV, Groq и гибрид.
       </p>
 
-      {/* Загрузка + параметры */}
       <div
         style={{
           display: "grid",
@@ -200,19 +198,14 @@ export default function ComparePage() {
               background: running || !file || !age ? "#b2bec3" : "#6c5ce7",
             }}
           >
-            {running ? "Анализ идёт..." : "Запустить сравнение (3 режима)"}
+            {running ? "Анализ идёт..." : "Запустить сравнение (4 режима)"}
           </button>
         </div>
       </div>
 
-      {/* Результаты в 3 колонках */}
       {(running || hasResults) && (
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 16,
-          }}
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
         >
           {results.map((r) => (
             <div
@@ -224,7 +217,6 @@ export default function ComparePage() {
                 transition: "opacity 0.3s",
               }}
             >
-              {/* Заголовок режима */}
               <div
                 style={{
                   display: "flex",
@@ -249,7 +241,6 @@ export default function ComparePage() {
                 )}
               </div>
 
-              {/* Загрузка */}
               {r.loading && (
                 <div
                   style={{
@@ -265,7 +256,6 @@ export default function ComparePage() {
                 </div>
               )}
 
-              {/* Ошибка */}
               {r.error && (
                 <div
                   style={{
@@ -280,10 +270,8 @@ export default function ComparePage() {
                 </div>
               )}
 
-              {/* Результат */}
               {r.result && (
                 <div>
-                  {/* Статус */}
                   <div style={{ marginBottom: 12 }}>
                     <StatusBadge status={r.result.overallState} />
                     <span
@@ -298,7 +286,6 @@ export default function ComparePage() {
                     </span>
                   </div>
 
-                  {/* Эмоции */}
                   <div style={{ marginBottom: 14 }}>
                     {r.result.emotions.map((e) => {
                       const em = EMOTIONS[e.name] ?? {
@@ -367,7 +354,6 @@ export default function ComparePage() {
                     })}
                   </div>
 
-                  {/* Объекты */}
                   {r.result.contentAnalysis &&
                     r.result.contentAnalysis.detectedObjects.length > 0 && (
                       <div style={{ marginBottom: 12 }}>
@@ -406,7 +392,6 @@ export default function ComparePage() {
                       </div>
                     )}
 
-                  {/* Портрет (сокращённый) */}
                   <p
                     style={{
                       fontSize: 12,

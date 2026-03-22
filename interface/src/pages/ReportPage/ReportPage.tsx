@@ -13,6 +13,7 @@ interface Props {
 }
 
 const MODE_BADGE: Record<string, { bg: string; label: string }> = {
+  cnn: { bg: "#e84393", label: "CNN" },
   groq: { bg: "#00b894", label: "Groq" },
   hybrid: { bg: "#6c5ce7", label: "Гибрид" },
   opencv: { bg: "#0984e3", label: "OpenCV" },

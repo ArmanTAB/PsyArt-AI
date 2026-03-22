@@ -3,3 +3,4 @@ core/__pycache__
 interface/node_modules
 .env
 logs
+__pycache__
