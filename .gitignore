@@ -4,3 +4,5 @@ interface/node_modules
 .env
 logs
 __pycache__
+.pytest_cache
+*.pth
