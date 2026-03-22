@@ -1,5 +1,5 @@
 """
-АртМинд — FastAPI Backend v7.0
+АртМинд — FastAPI Backend v7.1
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Запуск: py -3.11 -m uvicorn server:app --reload --port 8000
 
@@ -18,7 +18,11 @@
   GET  /history/{id}         — конкретный анализ
   GET  /history/{id}/image   — изображение рисунка
   DELETE /history/{id}       — удалить анализ
+
+v7.1: lifespan вместо on_event, health с try/catch БД
 """
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,10 +38,25 @@ from database      import init_db, get_db, save_analysis, get_history, get_analy
 from logger        import log_analysis_start, log_analysis_result, log_db_save, log_timing, logger
 
 # ── Инициализация ──────────────────────────────────────────
+
+opencv_analyzer = DrawingAnalyzer()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle (заменяет deprecated on_event)."""
+    logger.info("🚀 АртМинд API v7.1 — запуск")
+    init_db()
+    logger.info("💾 База данных инициализирована")
+    yield
+    logger.info("👋 АртМинд API — остановка")
+
+
 app = FastAPI(
     title="АртМинд API",
     description="Психоэмоциональный анализ детских рисунков",
-    version="7.0.0",
+    version="7.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -47,19 +66,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-opencv_analyzer = DrawingAnalyzer()
-
-
-@app.on_event("startup")
-def on_startup():
-    logger.info("🚀 АртМинд API v7.0 — запуск")
-    init_db()
-    logger.info("💾 База данных инициализирована")
-
 
 # ── Валидация ──────────────────────────────────────────────
 def _validate_image(file: UploadFile):
-    if not file.content_type.startswith("image/"):
+    if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Файл должен быть изображением")
 
 
@@ -85,7 +95,7 @@ async def _run_opencv(image_bytes: bytes, age: Optional[int], ctx: str) -> dict:
 def root():
     return {
         "status":  "ok",
-        "service": "АртМинд API v7.0",
+        "service": "АртМинд API v7.1",
         "modes":   ["auto", "opencv", "groq", "hybrid"],
     }
 
@@ -93,13 +103,22 @@ def root():
 @app.get("/health")
 async def health(db: Session = Depends(get_db)):
     groq_s = await check_groq_available()
-    db_count = get_history_count(db)
+
+    # ── Проверка БД с try/catch ──
+    db_connected = False
+    db_count = 0
+    try:
+        db_count = get_history_count(db)
+        db_connected = True
+    except Exception as e:
+        logger.error(f"Ошибка подключения к БД: {e}")
+
     return {
-        "status":        "healthy",
+        "status":        "healthy" if db_connected else "degraded",
         "opencv_ready":  True,
         "groq_ready":    groq_s["available"],
         "groq":          groq_s,
-        "db_connected":  True,
+        "db_connected":  db_connected,
         "db_analyses":   db_count,
     }
 
@@ -216,7 +235,6 @@ async def analyze_auto(
             log_db_save(record.id)
         except Exception as e:
             logger.error(f"Ошибка сохранения в БД: {e}")
-        # Не ломаем ответ — анализ уже готов
 
     return JSONResponse(content=result)
 
@@ -314,7 +332,6 @@ def history_image(analysis_id: int, db: Session = Depends(get_db)):
     record = get_analysis_by_id(db, analysis_id)
     if not record or not record.image_data:
         raise HTTPException(status_code=404, detail="Изображение не найдено")
-    # Определяем тип по первым байтам
     media_type = "image/png" if record.image_data[:4] == b"\x89PNG" else "image/jpeg"
     return Response(content=record.image_data, media_type=media_type)
 

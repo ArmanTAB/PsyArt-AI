@@ -338,7 +338,7 @@ export default function AnalysisPage({
             </label>
             <input
               type="number"
-              placeholder="Ввкдите возраст ребёнка"
+              placeholder="Введите возраст ребёнка"
               value={age}
               onChange={(e) => onAgeChange(e.target.value)}
               min={2}
