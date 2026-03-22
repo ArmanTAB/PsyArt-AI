@@ -1,3 +1,6 @@
+import { useRef, useCallback, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { AnalysisResult } from "../../types/analysis";
 import EmotionBar from "../../components/EmotionBar/EmotionBar";
 import StatusBadge from "../../components/StatusBadge/StatusBadge";
@@ -17,6 +20,79 @@ const MODE_BADGE: Record<string, { bg: string; label: string }> = {
 };
 
 export default function ReportPage({ result, age, onBack }: Props) {
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPDF = useCallback(async () => {
+    if (!reportRef.current || !result) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#faf8f5",
+        logging: false,
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const contentWidth = pageWidth - margin * 2;
+      const imgHeight = (canvas.height * contentWidth) / canvas.width;
+
+      let y = margin;
+      let remainingHeight = imgHeight;
+      let sourceY = 0;
+
+      while (remainingHeight > 0) {
+        const sliceHeight = Math.min(pageHeight - margin * 2, remainingHeight);
+        const sliceCanvasHeight = (sliceHeight / imgHeight) * canvas.height;
+
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceCanvasHeight;
+        const ctx = sliceCanvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(
+            canvas,
+            0,
+            sourceY,
+            canvas.width,
+            sliceCanvasHeight,
+            0,
+            0,
+            canvas.width,
+            sliceCanvasHeight,
+          );
+        }
+        const sliceData = sliceCanvas.toDataURL("image/png");
+
+        if (sourceY > 0) pdf.addPage();
+        pdf.addImage(
+          sliceData,
+          "PNG",
+          margin,
+          margin,
+          contentWidth,
+          sliceHeight,
+        );
+
+        sourceY += sliceCanvasHeight;
+        remainingHeight -= sliceHeight;
+      }
+
+      const date = new Date().toLocaleDateString("ru-RU").replace(/\./g, "-");
+      const state = result.overallState.replace(/_/g, " ");
+      pdf.save(`ArtMind_${state}_${date}.pdf`);
+    } catch (e) {
+      console.error("PDF export error:", e);
+      alert("Ошибка при создании PDF");
+    } finally {
+      setExporting(false);
+    }
+  }, [result]);
+
   if (!result) {
     return (
       <div
@@ -68,305 +144,213 @@ export default function ReportPage({ result, age, onBack }: Props) {
     : null;
 
   return (
-    <div
-      className="fade-in"
-      style={{ display: "flex", flexDirection: "column", gap: 20 }}
-    >
-      {/* Header */}
-      <div
-        className="card"
-        style={{
-          background: "linear-gradient(135deg,#2d3436,#1a1a2e)",
-          border: "none",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 4,
-            }}
-          >
-            <div
-              style={{
-                color: "#a29bfe",
-                fontSize: 12,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-              }}
-            >
-              Психологический отчёт
-            </div>
-            {modeBadge && (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: 20,
-                  background: modeBadge.bg,
-                  color: "#fff",
-                  letterSpacing: 0.5,
-                }}
-              >
-                {modeBadge.label}
-              </span>
-            )}
-          </div>
-
-          <h2
-            style={{
-              fontFamily: "DM Serif Display, serif",
-              fontSize: 26,
-              color: "#fff",
-            }}
-          >
-            Результаты анализа
-          </h2>
-
-          {age && (
-            <p style={{ color: "#b2bec3", fontSize: 14, marginTop: 4 }}>
-              Возраст: {age} лет
-            </p>
-          )}
-
-          {result.ageNormLabel && (
-            <p style={{ color: "#a29bfe", fontSize: 12, marginTop: 4 }}>
-              {result.ageNormLabel}
-            </p>
-          )}
-
-          {result.fallbackReason && (
-            <p style={{ color: "#fdcb6e", fontSize: 12, marginTop: 4 }}>
-              {result.fallbackReason}
-            </p>
-          )}
-
-          {result.contextAnalysis &&
-            result.contextAnalysis.stress_level > 0 && (
-              <p style={{ color: "#e17055", fontSize: 12, marginTop: 4 }}>
-                Стресс-контекст учтён (
-                {result.contextAnalysis.stress_keywords.join(", ")})
-              </p>
-            )}
-        </div>
-
-        <div style={{ textAlign: "right" }}>
-          <StatusBadge status={result.overallState} />
-          <div style={{ color: "#636e72", fontSize: 13, marginTop: 8 }}>
-            Уверенность:{" "}
-            <span
-              style={{
-                color: "#a29bfe",
-                fontFamily: "JetBrains Mono, monospace",
-                fontWeight: 700,
-              }}
-            >
-              {result.confidence}%
-            </span>
-          </div>
-          {result.dbId && (
-            <div style={{ color: "#636e72", fontSize: 11, marginTop: 4 }}>
-              ID: {result.dbId}
-            </div>
-          )}
-        </div>
+    <div className="fade-in">
+      {/* Кнопки управления */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        <button
+          className="btn-primary"
+          style={{
+            background: "#636e72",
+            flex: "none",
+            width: "auto",
+            padding: "10px 24px",
+          }}
+          onClick={onBack}
+        >
+          Новый анализ
+        </button>
+        <button
+          className="btn-primary"
+          style={{
+            background: exporting ? "#b2bec3" : "#6c5ce7",
+            flex: "none",
+            width: "auto",
+            padding: "10px 24px",
+          }}
+          onClick={handleExportPDF}
+          disabled={exporting}
+        >
+          {exporting ? "Создание PDF..." : "Скачать PDF"}
+        </button>
       </div>
 
-      {/* Содержание рисунка */}
-      {result.contentAnalysis &&
-        result.contentAnalysis.detectedObjects?.length > 0 && (
-          <div className="card">
-            <h3
-              style={{
-                fontFamily: "DM Serif Display, serif",
-                fontSize: 18,
-                marginBottom: 12,
-                color: "#2d3436",
-              }}
-            >
-              Содержание рисунка
-            </h3>
+      {/* Область отчёта для рендеринга в PDF */}
+      <div
+        ref={reportRef}
+        style={{ display: "flex", flexDirection: "column", gap: 20 }}
+      >
+        {/* Header */}
+        <div
+          className="card"
+          style={{
+            background: "linear-gradient(135deg,#2d3436,#1a1a2e)",
+            border: "none",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
+                alignItems: "center",
                 gap: 8,
-                marginBottom: 12,
+                marginBottom: 4,
               }}
             >
-              {result.contentAnalysis.detectedObjects.map((obj) => (
-                <span
-                  key={obj}
-                  style={{
-                    background: "#f0f0ff",
-                    border: "1px solid #a29bfe",
-                    borderRadius: 20,
-                    padding: "4px 12px",
-                    fontSize: 13,
-                    color: "#6c5ce7",
-                    fontWeight: 600,
-                  }}
-                >
-                  {obj}
-                </span>
-              ))}
-            </div>
-            {result.contentAnalysis.symbolism && (
-              <p style={{ fontSize: 14, color: "#636e72", lineHeight: 1.6 }}>
-                {result.contentAnalysis.symbolism}
-              </p>
-            )}
-          </div>
-        )}
-
-      {/* Эмоциональный профиль */}
-      <div className="card">
-        <h3
-          style={{
-            fontFamily: "DM Serif Display, serif",
-            fontSize: 18,
-            marginBottom: 16,
-            color: "#2d3436",
-          }}
-        >
-          Эмоциональный профиль
-        </h3>
-        {result.emotions.map((e) => (
-          <EmotionBar
-            key={e.name}
-            {...e}
-            chain={result.evidenceChains?.[e.name]}
-          />
-        ))}
-      </div>
-
-      {/* Психологический портрет */}
-      <div className="card">
-        <h3
-          style={{
-            fontFamily: "DM Serif Display, serif",
-            fontSize: 18,
-            marginBottom: 12,
-            color: "#2d3436",
-          }}
-        >
-          Психологический портрет
-        </h3>
-        <p style={{ fontSize: 15, color: "#4a4a4a", lineHeight: 1.8 }}>
-          {result.psychologicalPortrait}
-        </p>
-      </div>
-
-      {/* Риски + Рекомендации */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        {result.riskFactors.length > 0 && (
-          <div className="card">
-            <h3
-              style={{
-                fontFamily: "DM Serif Display, serif",
-                fontSize: 18,
-                marginBottom: 14,
-                color: "#2d3436",
-              }}
-            >
-              Факторы риска
-            </h3>
-            {result.riskFactors.map((r) => (
-              <span key={r} className="risk-tag">
-                {r}
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="card">
-          <h3
-            style={{
-              fontFamily: "DM Serif Display, serif",
-              fontSize: 18,
-              marginBottom: 14,
-              color: "#2d3436",
-            }}
-          >
-            Рекомендации
-          </h3>
-          {result.recommendations.map((r, i) => (
-            <div key={i} className="recommendation-item">
-              <span
+              <div
                 style={{
-                  minWidth: 24,
-                  height: 24,
-                  background: "#6c5ce7",
-                  color: "#fff",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  color: "#a29bfe",
                   fontSize: 12,
-                  fontWeight: 700,
-                  fontFamily: "JetBrains Mono, monospace",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
                 }}
               >
-                {i + 1}
-              </span>
-              <span style={{ fontSize: 14, color: "#4a4a4a", lineHeight: 1.6 }}>
-                {r}
+                Психологический отчёт
+              </div>
+              {modeBadge && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 20,
+                    background: modeBadge.bg,
+                    color: "#fff",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {modeBadge.label}
+                </span>
+              )}
+            </div>
+
+            <h2
+              style={{
+                fontFamily: "DM Serif Display, serif",
+                fontSize: 26,
+                color: "#fff",
+              }}
+            >
+              Результаты анализа
+            </h2>
+
+            {age && (
+              <p style={{ color: "#b2bec3", fontSize: 14, marginTop: 4 }}>
+                Возраст: {age} лет
+              </p>
+            )}
+            {result.ageNormLabel && (
+              <p style={{ color: "#a29bfe", fontSize: 12, marginTop: 4 }}>
+                {result.ageNormLabel}
+              </p>
+            )}
+            {result.fallbackReason && (
+              <p style={{ color: "#fdcb6e", fontSize: 12, marginTop: 4 }}>
+                {result.fallbackReason}
+              </p>
+            )}
+            {result.contextAnalysis &&
+              result.contextAnalysis.stress_level > 0 && (
+                <p style={{ color: "#e17055", fontSize: 12, marginTop: 4 }}>
+                  Стресс-контекст учтён (
+                  {result.contextAnalysis.stress_keywords.join(", ")})
+                </p>
+              )}
+          </div>
+
+          <div style={{ textAlign: "right" }}>
+            <StatusBadge status={result.overallState} />
+            <div style={{ color: "#636e72", fontSize: 13, marginTop: 8 }}>
+              Уверенность:{" "}
+              <span
+                style={{
+                  color: "#a29bfe",
+                  fontFamily: "JetBrains Mono, monospace",
+                  fontWeight: 700,
+                }}
+              >
+                {result.confidence}%
               </span>
             </div>
-          ))}
+            {result.dbId && (
+              <div style={{ color: "#636e72", fontSize: 11, marginTop: 4 }}>
+                ID: {result.dbId}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Цветовой анализ */}
-      {Object.keys(result.colorAnalysis.colorRatios).length > 0 && (
+        {/* Содержание рисунка */}
+        {result.contentAnalysis &&
+          result.contentAnalysis.detectedObjects?.length > 0 && (
+            <div className="card">
+              <h3
+                style={{
+                  fontFamily: "DM Serif Display, serif",
+                  fontSize: 18,
+                  marginBottom: 12,
+                  color: "#2d3436",
+                }}
+              >
+                Содержание рисунка
+              </h3>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                {result.contentAnalysis.detectedObjects.map((obj) => (
+                  <span
+                    key={obj}
+                    style={{
+                      background: "#f0f0ff",
+                      border: "1px solid #a29bfe",
+                      borderRadius: 20,
+                      padding: "4px 12px",
+                      fontSize: 13,
+                      color: "#6c5ce7",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {obj}
+                  </span>
+                ))}
+              </div>
+              {result.contentAnalysis.symbolism && (
+                <p style={{ fontSize: 14, color: "#636e72", lineHeight: 1.6 }}>
+                  {result.contentAnalysis.symbolism}
+                </p>
+              )}
+            </div>
+          )}
+
+        {/* Эмоциональный профиль */}
         <div className="card">
           <h3
             style={{
               fontFamily: "DM Serif Display, serif",
               fontSize: 18,
-              marginBottom: 14,
+              marginBottom: 16,
               color: "#2d3436",
             }}
           >
-            Цветовой анализ (Люшер)
+            Эмоциональный профиль
           </h3>
-          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-            {result.colorAnalysis.dominant.map((hex) => (
-              <ColorSwatch key={hex} hex={hex} />
-            ))}
-          </div>
-          <p style={{ fontSize: 14, color: "#636e72", marginBottom: 10 }}>
-            {result.colorAnalysis.interpretation}
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {Object.entries(result.colorAnalysis.colorRatios)
-              .sort(([, a], [, b]) => b - a)
-              .slice(0, 6)
-              .map(([name, ratio]) => (
-                <span
-                  key={name}
-                  style={{
-                    fontSize: 12,
-                    padding: "3px 10px",
-                    borderRadius: 12,
-                    background: "#f5f5f5",
-                    color: "#4a4a4a",
-                  }}
-                >
-                  {name} {ratio}%
-                </span>
-              ))}
-          </div>
+          {result.emotions.map((e) => (
+            <EmotionBar
+              key={e.name}
+              {...e}
+              chain={result.evidenceChains?.[e.name]}
+            />
+          ))}
         </div>
-      )}
 
-      {/* Зональный анализ */}
-      {result.zoneAnalysis && (
+        {/* Психологический портрет */}
         <div className="card">
           <h3
             style={{
@@ -376,51 +360,183 @@ export default function ReportPage({ result, age, onBack }: Props) {
               color: "#2d3436",
             }}
           >
-            Зональный анализ (Маховер)
+            Психологический портрет
           </h3>
-          <p style={{ fontSize: 14, color: "#636e72", marginBottom: 12 }}>
-            {result.zoneAnalysis.balanceInterpretation}
+          <p style={{ fontSize: 15, color: "#4a4a4a", lineHeight: 1.8 }}>
+            {result.psychologicalPortrait}
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {Object.entries(result.zoneAnalysis.zoneClasses).map(
-              ([zone, cls]) => (
+        </div>
+
+        {/* Риски + Рекомендации */}
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}
+        >
+          {result.riskFactors.length > 0 && (
+            <div className="card">
+              <h3
+                style={{
+                  fontFamily: "DM Serif Display, serif",
+                  fontSize: 18,
+                  marginBottom: 14,
+                  color: "#2d3436",
+                }}
+              >
+                Факторы риска
+              </h3>
+              {result.riskFactors.map((r) => (
+                <span key={r} className="risk-tag">
+                  {r}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="card">
+            <h3
+              style={{
+                fontFamily: "DM Serif Display, serif",
+                fontSize: 18,
+                marginBottom: 14,
+                color: "#2d3436",
+              }}
+            >
+              Рекомендации
+            </h3>
+            {result.recommendations.map((r, i) => (
+              <div key={i} className="recommendation-item">
                 <span
-                  key={zone}
                   style={{
+                    minWidth: 24,
+                    height: 24,
+                    background: "#6c5ce7",
+                    color: "#fff",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     fontSize: 12,
-                    padding: "4px 12px",
-                    borderRadius: 12,
-                    background:
-                      cls === "высокая"
-                        ? "#eafaf1"
-                        : cls === "низкая"
-                          ? "#fff5f5"
-                          : "#f5f5f5",
-                    color:
-                      cls === "высокая"
-                        ? "#27ae60"
-                        : cls === "низкая"
-                          ? "#e17055"
-                          : "#636e72",
-                    fontWeight: 600,
+                    fontWeight: 700,
+                    fontFamily: "JetBrains Mono, monospace",
                   }}
                 >
-                  {zone}: {cls}
+                  {i + 1}
                 </span>
-              ),
-            )}
+                <span
+                  style={{ fontSize: 14, color: "#4a4a4a", lineHeight: 1.6 }}
+                >
+                  {r}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* Кнопка назад */}
-      <button
-        className="btn-primary"
-        style={{ background: "#636e72", marginTop: 8 }}
-        onClick={onBack}
-      >
-        Новый анализ
-      </button>
+        {/* Цветовой анализ */}
+        {Object.keys(result.colorAnalysis.colorRatios).length > 0 && (
+          <div className="card">
+            <h3
+              style={{
+                fontFamily: "DM Serif Display, serif",
+                fontSize: 18,
+                marginBottom: 14,
+                color: "#2d3436",
+              }}
+            >
+              Цветовой анализ (Люшер)
+            </h3>
+            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+              {result.colorAnalysis.dominant.map((hex) => (
+                <ColorSwatch key={hex} hex={hex} />
+              ))}
+            </div>
+            <p style={{ fontSize: 14, color: "#636e72", marginBottom: 10 }}>
+              {result.colorAnalysis.interpretation}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {Object.entries(result.colorAnalysis.colorRatios)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 6)
+                .map(([name, ratio]) => (
+                  <span
+                    key={name}
+                    style={{
+                      fontSize: 12,
+                      padding: "3px 10px",
+                      borderRadius: 12,
+                      background: "#f5f5f5",
+                      color: "#4a4a4a",
+                    }}
+                  >
+                    {name} {ratio}%
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Зональный анализ */}
+        {result.zoneAnalysis && (
+          <div className="card">
+            <h3
+              style={{
+                fontFamily: "DM Serif Display, serif",
+                fontSize: 18,
+                marginBottom: 12,
+                color: "#2d3436",
+              }}
+            >
+              Зональный анализ (Маховер)
+            </h3>
+            <p style={{ fontSize: 14, color: "#636e72", marginBottom: 12 }}>
+              {result.zoneAnalysis.balanceInterpretation}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {Object.entries(result.zoneAnalysis.zoneClasses).map(
+                ([zone, cls]) => (
+                  <span
+                    key={zone}
+                    style={{
+                      fontSize: 12,
+                      padding: "4px 12px",
+                      borderRadius: 12,
+                      background:
+                        cls === "высокая"
+                          ? "#eafaf1"
+                          : cls === "низкая"
+                            ? "#fff5f5"
+                            : "#f5f5f5",
+                      color:
+                        cls === "высокая"
+                          ? "#27ae60"
+                          : cls === "низкая"
+                            ? "#e17055"
+                            : "#636e72",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {zone}: {cls}
+                  </span>
+                ),
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Футер PDF */}
+        <div
+          style={{
+            textAlign: "center",
+            padding: "12px 0",
+            fontSize: 11,
+            color: "#b2bec3",
+          }}
+        >
+          АртМинд — Психоэмоциональный анализ детских рисунков —{" "}
+          {new Date().toLocaleDateString("ru-RU")}
+          <br />
+          Результаты носят вспомогательный характер и требуют очной консультации
+          специалиста
+        </div>
+      </div>
     </div>
   );
 }

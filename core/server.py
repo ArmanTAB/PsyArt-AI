@@ -143,6 +143,7 @@ async def analyze_auto(
     age:     Optional[int] = Form(None),
     context: Optional[str] = Form(""),
     mode:    Optional[str] = Form("auto"),
+    save:    Optional[str] = Form("true"),
     db:      Session       = Depends(get_db),
 ):
     _validate_image(file)
@@ -194,21 +195,23 @@ async def analyze_auto(
         result.get("emotions", []),
     )
 
-    # ── Сохранение в БД ──
-    try:
-        record = save_analysis(
-            db=db,
-            child_age=age,
-            context=ctx,
-            image_name=file.filename or "upload.jpg",
-            image_data=image_bytes,
-            analysis_mode=result.get("analysisMode", mode),
-            result=result,
-        )
-        result["dbId"] = record.id
-        log_db_save(record.id)
-    except Exception as e:
-        logger.error(f"Ошибка сохранения в БД: {e}")
+    # ── Сохранение в БД (пропуск при save=false, например для сравнения) ──
+    should_save = save != "false"
+    if should_save:
+        try:
+            record = save_analysis(
+                db=db,
+                child_age=age,
+                context=ctx,
+                image_name=file.filename or "upload.jpg",
+                image_data=image_bytes,
+                analysis_mode=result.get("analysisMode", mode),
+                result=result,
+            )
+            result["dbId"] = record.id
+            log_db_save(record.id)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения в БД: {e}")
         # Не ломаем ответ — анализ уже готов
 
     return JSONResponse(content=result)

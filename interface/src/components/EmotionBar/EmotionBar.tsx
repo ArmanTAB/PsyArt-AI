@@ -53,13 +53,17 @@ export default function EmotionBar({
             <span
               style={{
                 fontSize: 11,
-                color: "#b2bec3",
-                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s",
-                display: "inline-block",
+                color: "#6c5ce7",
+                fontWeight: 600,
+                marginLeft: 4,
+                padding: "1px 6px",
+                borderRadius: 8,
+                background: expanded ? "#ede9ff" : "#f5f3ff",
+                border: "1px solid #d5d0f0",
+                cursor: "pointer",
               }}
             >
-              &#9662;
+              {expanded ? "скрыть" : "подробнее"}
             </span>
           )}
         </span>

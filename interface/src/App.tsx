@@ -7,6 +7,7 @@ import { analyzeDrawing } from "./api/analyzeService";
 import Header from "./components/Header/Header";
 import AnalysisPage from "./pages/AnalysisPage/AnalysisPage";
 import ReportPage from "./pages/ReportPage/ReportPage";
+import ComparePage from "./pages/ComparePage/ComparePage";
 import HistoryPage from "./pages/HistoryPage/HistoryPage";
 import AboutPage from "./pages/AboutPage/AboutPage";
 
@@ -80,8 +81,9 @@ export default function App() {
         {tab === 1 && (
           <ReportPage result={result} age={age} onBack={() => setTab(0)} />
         )}
-        {tab === 2 && <HistoryPage onSelect={handleHistorySelect} />}
-        {tab === 3 && <AboutPage />}
+        {tab === 2 && <ComparePage />}
+        {tab === 3 && <HistoryPage onSelect={handleHistorySelect} />}
+        {tab === 4 && <AboutPage />}
       </div>
     </div>
   );

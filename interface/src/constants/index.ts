@@ -13,5 +13,11 @@ export const EMOTIONS: Record<string, EmotionMeta> = {
   спокойствие: { color: "#55EFC4", label: "Спокойствие" },
 };
 
-export const TABS = ["Анализ", "Отчёт", "История", "О системе"] as const;
+export const TABS = [
+  "Анализ",
+  "Отчёт",
+  "Сравнение",
+  "История",
+  "О системе",
+] as const;
 export type TabName = (typeof TABS)[number];
