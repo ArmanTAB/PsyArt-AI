@@ -168,14 +168,17 @@ export default function ComparePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="card">
             <div style={{ marginBottom: 12 }}>
-              <label>Возраст (лет)</label>
+              <label>
+                Возраст (лет) <span style={{ color: "#e17055" }}>*</span>
+              </label>
               <input
                 type="number"
-                placeholder="например, 7"
+                placeholder="Введите возраст ребёнка"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 min={2}
                 max={17}
+                style={{ borderColor: !age ? "#fcd89a" : undefined }}
               />
             </div>
             <div>
@@ -192,8 +195,10 @@ export default function ComparePage() {
           <button
             className="btn-primary"
             onClick={runComparison}
-            disabled={!file || running}
-            style={{ background: running ? "#b2bec3" : "#6c5ce7" }}
+            disabled={!file || !age || running}
+            style={{
+              background: running || !file || !age ? "#b2bec3" : "#6c5ce7",
+            }}
           >
             {running ? "Анализ идёт..." : "Запустить сравнение (3 режима)"}
           </button>

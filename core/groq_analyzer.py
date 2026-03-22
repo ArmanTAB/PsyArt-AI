@@ -1,18 +1,9 @@
 """
-АртМинд — Groq Vision Анализатор v2.0
+АртМинд — Groq Vision Анализатор v2.1
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Анализ детских рисунков через Groq API (LLaMA-4 Scout).
 
-Настройка:
-  1. Зарегистрируйся на console.groq.com
-  2. API Keys → Create API Key
-  3. Добавь в core/.env:  GROQ_API_KEY=gsk_...
-  4. Установи: py -3.11 -m pip install groq python-dotenv
-
-Лимиты бесплатного tier (на март 2026):
-  - 30 запросов / минуту
-  - 14 400 запросов / день
-  - 1 000 000 токенов / день
+v2.1: Фикс has_vision для LLaMA-4 Scout
 """
 
 import base64
@@ -34,6 +25,9 @@ from prompts import (
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL   = "meta-llama/llama-4-scout-17b-16e-instruct"
 
+# Модели с поддержкой Vision (не имеют "vision" в названии)
+VISION_MODELS = {"meta-llama/llama-4-scout-17b-16e-instruct"}
+
 # ── Инициализация клиента ──────────────────────────────────────────────────
 _client: Optional[Groq] = None
 
@@ -46,18 +40,10 @@ def _get_client() -> Groq:
     return _client
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# ГИБРИДНАЯ АГРЕГАЦИЯ (обёртка для server.py)
-# ══════════════════════════════════════════════════════════════════════════
-
 def _hybrid_merge(groq_result: dict, opencv_result: dict) -> dict:
     """Groq (65%) + OpenCV (35%). Обёртка над универсальной функцией."""
     return hybrid_merge(groq_result, opencv_result, llm_name="Groq")
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# ОСНОВНЫЕ ФУНКЦИИ
-# ══════════════════════════════════════════════════════════════════════════
 
 async def analyze_with_groq(
     image_bytes: bytes,
@@ -68,7 +54,6 @@ async def analyze_with_groq(
     client = _get_client()
     prompt = build_prompt(child_age, context)
 
-    # Кодируем изображение в base64
     image_b64  = base64.b64encode(image_bytes).decode("utf-8")
     media_type = "image/png" if image_bytes[:4] == b"\x89PNG" else "image/jpeg"
 
@@ -110,7 +95,7 @@ async def check_groq_available() -> dict:
         client = _get_client()
         models = client.models.list()
         model_ids  = [m.id for m in models.data]
-        has_vision = any("vision" in m for m in model_ids)
+        has_vision = bool(VISION_MODELS & set(model_ids)) or any("vision" in m for m in model_ids)
         return {
             "available":  True,
             "model":      GROQ_MODEL,

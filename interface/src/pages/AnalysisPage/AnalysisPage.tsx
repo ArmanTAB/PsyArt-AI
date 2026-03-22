@@ -333,15 +333,32 @@ export default function AnalysisPage({
             Данные о ребёнке
           </h3>
           <div style={{ marginBottom: 14 }}>
-            <label>Возраст (лет)</label>
+            <label>
+              Возраст (лет) <span style={{ color: "#e17055" }}>*</span>
+            </label>
             <input
               type="number"
-              placeholder="например, 7"
+              placeholder="Ввкдите возраст ребёнка"
               value={age}
               onChange={(e) => onAgeChange(e.target.value)}
               min={2}
               max={17}
+              style={{
+                borderColor: !age ? "#fcd89a" : undefined,
+              }}
             />
+            {!age && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "#e67e22",
+                  marginTop: 4,
+                  display: "block",
+                }}
+              >
+                Возраст влияет на калибровку результатов по нормам развития
+              </span>
+            )}
           </div>
           <div>
             <label>Контекст для психолога</label>
@@ -382,11 +399,17 @@ export default function AnalysisPage({
           className="btn-primary"
           onClick={() => onAnalyze(getMode())}
           disabled={
-            !previewUrl || loading || (tab !== "opencv" && !isAvailable(tab))
+            !previewUrl ||
+            !age ||
+            loading ||
+            (tab !== "opencv" && !isAvailable(tab))
           }
           style={{
             background:
-              loading || (tab !== "opencv" && !isAvailable(tab))
+              loading ||
+              !previewUrl ||
+              !age ||
+              (tab !== "opencv" && !isAvailable(tab))
                 ? "#b2bec3"
                 : activeColor,
           }}

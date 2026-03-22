@@ -150,6 +150,10 @@ async def analyze_auto(
     image_bytes = await _read_image(file)
     ctx = context or ""
 
+    # ── Валидация возраста ──
+    if age is not None and (age < 2 or age > 17):
+        raise HTTPException(status_code=400, detail="Возраст должен быть от 2 до 17 лет")
+
     log_analysis_start(mode, age, bool(ctx))
 
     # ── Выбор режима ──
